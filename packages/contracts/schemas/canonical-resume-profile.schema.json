@@ -1,0 +1,68 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://resume-tweak.local/schemas/canonical-resume-profile.schema.json",
+    "title": "CanonicalResumeProfile",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "resumeId",
+        "claims"
+    ],
+    "properties": {
+        "resumeId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "claims": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/claim"
+            }
+        }
+    },
+    "$defs": {
+        "claim": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "text",
+                "evidence"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "text": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/evidence"
+                    }
+                }
+            }
+        },
+        "evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "sourceFactId",
+                "sourceSegmentId"
+            ],
+            "properties": {
+                "sourceFactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "sourceSegmentId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        }
+    }
+}

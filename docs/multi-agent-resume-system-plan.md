@@ -13,6 +13,36 @@ Build a private, local-first web application that tailors a factual base resume 
 
 This document is the implementation reference for the application.
 
+## Implementation Status
+
+**Current phase: Phase 1 — Resume Ingestion and Canonical Profile**
+
+**Phase 0 foundation status: Complete (2026-09-08)**
+
+The Phase 0 backend foundation is implemented and locally validated. The completed
+foundation includes the pnpm TypeScript workspace, NestJS API, minimal Next.js
+shell, shared contracts and JSON Schema artifacts, centralized Foundry model
+configuration, server-side `.env` loading, Swagger/OpenAPI setup, health endpoint,
+evidence guard, anonymized fixtures, and a live Foundry smoke test against
+`gpt-5.6-terra`.
+
+Validation completed:
+
+- NestJS API build passes.
+- Unit tests pass, including rejection of unsupported resume claims.
+- HTTP end-to-end tests pass for health and OpenAPI.
+- NestJS development server starts with zero compilation errors.
+- The NestJS-resolved Foundry client successfully invokes `gpt-5.6-terra`.
+
+Remaining work is intentionally carried into later phases:
+
+- Persist resolved model profile metadata when tailoring runs and versions exist.
+- Wire schema validation into every agent handoff when the orchestrator is added.
+- Build the functional upload/review UI on top of the Phase 1 API.
+
+**Next development objective:** implement Phase 1 resume ingestion, beginning with
+DOCX-only upload and extraction into a reviewable canonical factual profile.
+
 ---
 
 ## How to Use This Plan
@@ -20,13 +50,23 @@ This document is the implementation reference for the application.
 Use the document in this order during development:
 
 1. Start with **Confirmed Decisions**, **Product Rules**, and **Technical Architecture**.
-2. Build the phases in order; do not skip the factual-profile and approval stages.
+2. Build and test the NestJS backend before feature-complete frontend work; do not skip the factual-profile and approval stages.
 3. Treat the **Data Contracts and Guardrails** as non-negotiable rules for every agent and API.
 4. Use **Definition of Done** to decide whether the first release is complete.
 
 ### First release in one page
 
 The user uploads a resume, checks the extracted facts, pastes a job description and optional instructions, reviews an AI-tailored draft, approves it, then downloads matching ATS-safe DOCX and PDF files. Every agent call uses `gpt-5.6-terra`; no agent may invent facts.
+
+### Development order
+
+Use a **backend-first** approach:
+
+1. Build NestJS modules, local persistence, document generation, Foundry integration, and automated API tests.
+2. Publish and stabilize the OpenAPI contract.
+3. Build the Next.js user interface against the stable API contract.
+
+This is the recommended approach. It makes the multi-agent workflow testable independently from the UI and prevents the frontend from defining an unstable backend API.
 
 ---
 
@@ -97,7 +137,42 @@ Keep the NestJS backend organized by responsibility:
 - The Next.js application must not contain Foundry endpoints, API keys, or connection strings.
 - Validate file types, file sizes, and all API payloads at the NestJS boundary.
 
-### 3.4 Configurable model design
+### 3.4 API documentation and testing
+
+The NestJS API must publish an OpenAPI specification and local Swagger UI. This makes every endpoint testable before the Next.js user interface is built.
+
+| Tool | Purpose |
+|---|---|
+| Swagger UI | Manual, interactive API testing and endpoint documentation |
+| OpenAPI JSON | API source of truth; later used to generate or validate a typed Next.js client |
+| Unit tests | Parsers, validators, services, version logic, and document-generation functions |
+| Integration tests | NestJS modules with validation, temporary local storage, and mocked Foundry responses |
+| End-to-end API tests | HTTP-level workflows: upload, tailoring run, approval, and download |
+| Contract tests | Verify endpoint responses match OpenAPI DTOs and schemas |
+
+Recommended local development endpoints:
+
+```text
+GET  /api/health        # API and dependency health
+GET  /api/docs          # Swagger UI; local/development only
+GET  /api/openapi.json  # Machine-readable OpenAPI contract
+```
+
+Swagger UI must be disabled or access-controlled outside local development. It must not expose credentials, private Foundry configuration, or personal-resume data in examples.
+
+#### Manual backend test flow
+
+1. Upload an anonymized test DOCX/PDF through Swagger UI.
+2. Retrieve and validate the canonical profile.
+3. Start a tailoring run with a job description and optional `additionalInstructions`.
+4. Poll the tailoring-run status endpoint until it completes.
+5. Inspect the evidence matrix, review reports, final draft, gaps, and change log.
+6. Approve the run.
+7. Download and inspect the generated DOCX and PDF.
+
+Use anonymized fixtures for automated and Swagger testing. Do not commit a personal resume to the repository.
+
+### 3.5 Configurable model design
 
 Keep model configuration in one server-side location. Every agent receives a resolved `ModelProfile` from the backend; no prompt, sub-agent, or frontend component may embed a deployment name.
 
@@ -545,12 +620,17 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 ### Phase 0 — Foundation and Design Validation
 
+**Status: Complete (2026-09-08)**
+
 **Objective:** Establish the project foundation and validate technical choices before building the full workflow.
 
 **Deliverables**
 
 - Application repository structure and local configuration model.
 - Next.js frontend and NestJS backend workspace structure, shared TypeScript contracts, and local development configuration.
+- Implement NestJS first; the Next.js application may remain a minimal shell until API contracts stabilize.
+- Swagger UI and OpenAPI JSON generated from NestJS DTOs and validation metadata.
+- Health endpoint plus an HTTP end-to-end test harness.
 - Foundry connection configuration using the selected project and `gpt-5.6-terra` deployment.
 - Central server-side model-profile configuration with `gpt-5.6-terra` as the default profile.
 - JSON schemas for core agent contracts.
@@ -560,12 +640,33 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 **Acceptance criteria**
 
-- One authenticated call to `gpt-5.6-terra` succeeds from the local application.
-- No agent, prompt, or frontend component embeds a model/deployment name; configuration resolves it centrally.
-- Run metadata identifies the resolved model profile and deployment.
-- Schema validation rejects unsupported resume-claim additions.
+- [x] One authenticated call to `gpt-5.6-terra` succeeds from the local application.
+- [x] No agent, prompt, or frontend component embeds a model/deployment name; configuration resolves it centrally.
+- [ ] Run metadata identifies the resolved model profile and deployment. Complete when tailoring-run persistence is implemented.
+- [x] Evidence validation rejects unsupported resume-claim additions.
+- [x] Swagger/OpenAPI endpoints and HTTP tests are available for non-sensitive local endpoints.
+- [x] Standalone JSON Schema artifacts exist for the core agent contracts.
+- [x] Document-generation and PDF-rendering library decision record is recorded in `docs/phase-0-document-generation-decision.md`.
+- [x] Minimal Next.js workspace shell exists; feature UI remains deferred until API contracts stabilize.
+
+### Phase 0 Exit Record
+
+- **Completed:** workspace scaffold, NestJS API, minimal Next.js shell, shared contracts,
+  JSON Schema artifacts, local configuration,
+  ConfigModule `.env` loading, Swagger/OpenAPI, health endpoint, unit/e2e test
+  harness, Foundry client, and live deployment smoke test.
+- **Model verified:** server-side deployment `gpt-5.6-terra`.
+- **Authentication verified:** API key loaded from the server-side `apps/api/.env`.
+- **Security boundary verified:** Foundry credentials are not exposed to the browser
+  or returned by the health endpoint.
+- **Known limitation:** the smoke test is opt-in and requires the local environment
+  variable `FOUNDRY_SMOKE_TEST_ENABLED=true`; it is not enabled by default in source
+  control.
+- **Exit decision:** proceed to Phase 1 with DOCX-only ingestion as the first slice.
 
 ### Phase 1 — Resume Ingestion and Canonical Profile
+
+**Status: Next**
 
 **Objective:** Safely accept DOCX/PDF files and create a user-validated factual profile.
 
@@ -578,6 +679,16 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 - Resume-section classifier and canonical JSON profile generator.
 - Extraction review screen allowing the user to correct parsed data before it is used.
 - Local file storage and source/version manifests.
+- Unit, integration, and HTTP end-to-end tests for upload, extraction, review, and validation errors.
+
+**Phase 1 starting slice**
+
+1. Define the canonical resume profile and source-reference contracts in the shared package.
+2. Add a local storage service for uploaded source files and profile manifests.
+3. Add a DOCX upload endpoint with file type and size validation.
+4. Extract DOCX paragraphs and basic structure into source segments.
+5. Produce a canonical profile draft with stable fact IDs and source references.
+6. Add API tests using an anonymized DOCX fixture before building the review UI.
 
 **Acceptance criteria**
 
@@ -600,6 +711,7 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 - Resume Tailoring Writer sub-agent.
 - Evidence matrix display and unmatched-requirements display.
 - Draft preview using Markdown/HTML.
+- Swagger-documented tailoring endpoints with request/response examples and end-to-end workflow tests.
 
 **Acceptance criteria**
 
@@ -687,6 +799,18 @@ These items must not delay the core factual, ATS-safe DOCX/PDF workflow.
 ---
 
 ## 12. Testing Strategy
+
+### Backend API testing layers
+
+Build this suite before creating the full Next.js experience:
+
+1. **Unit tests:** pure functions and individual NestJS services.
+2. **Integration tests:** NestJS modules with DTO validation, temporary local data directories, and mocked Foundry responses.
+3. **End-to-end API tests:** HTTP requests against a booted NestJS app for uploads, workflow status, approval, and document downloads.
+4. **Contract tests:** live responses conform to published OpenAPI schemas.
+5. **Manual Swagger tests:** exploratory testing through `/api/docs` during local backend development.
+
+Mock the Foundry client by default for fast, predictable tests. Keep a separately enabled smoke test that calls the active configured Foundry model profile only when credentials are available.
 
 ### Unit tests
 

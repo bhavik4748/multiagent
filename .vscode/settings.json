@@ -1,3 +1,8 @@
 {
-    "github.copilot.chat.gemini3LowReasoningEffort.enabled": false
+    "github.copilot.chat.gemini3LowReasoningEffort.enabled": false,
+    "chat.tools.terminal.autoApprove": {
+        "pnpm": true,
+        "Test-Path": true,
+        "git check-ignore": true
+    }
 }

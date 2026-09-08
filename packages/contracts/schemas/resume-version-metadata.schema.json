@@ -1,0 +1,78 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://resume-tweak.local/schemas/resume-version-metadata.schema.json",
+    "title": "ResumeVersionMetadata",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "versionId",
+        "versionType",
+        "sourceResumeId",
+        "createdAt",
+        "modelProfileId",
+        "deployment"
+    ],
+    "properties": {
+        "versionId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "versionType": {
+            "enum": [
+                "general",
+                "targeted",
+                "job-specific"
+            ]
+        },
+        "track": {
+            "type": "string"
+        },
+        "sourceResumeId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "company": {
+            "type": "string"
+        },
+        "targetRole": {
+            "type": "string"
+        },
+        "createdAt": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "jobDescriptionHash": {
+            "type": "string"
+        },
+        "modelProfileId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "deployment": {
+            "type": "string",
+            "minLength": 1
+        },
+        "includedKeywords": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "unresolvedGaps": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "outputArtifactPaths": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "approvedAt": {
+            "type": "string",
+            "format": "date-time"
+        }
+    }
+}

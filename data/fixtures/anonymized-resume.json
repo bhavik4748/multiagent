@@ -1,0 +1,15 @@
+{
+    "resumeId": "fixture-resume-001",
+    "claims": [
+        {
+            "id": "experience-001-bullet-001",
+            "text": "Built TypeScript APIs for an internal reporting platform.",
+            "evidence": [
+                {
+                    "sourceFactId": "experience-001-bullet-001",
+                    "sourceSegmentId": "source-paragraph-12"
+                }
+            ]
+        }
+    ]
+}

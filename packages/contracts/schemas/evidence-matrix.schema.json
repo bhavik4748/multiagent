@@ -1,0 +1,51 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://resume-tweak.local/schemas/evidence-matrix.schema.json",
+    "title": "EvidenceMatrix",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "rows"
+    ],
+    "properties": {
+        "rows": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "requirement",
+                    "strength",
+                    "action",
+                    "evidence"
+                ],
+                "properties": {
+                    "requirement": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "strength": {
+                        "enum": [
+                            "strong",
+                            "partial",
+                            "none"
+                        ]
+                    },
+                    "action": {
+                        "enum": [
+                            "emphasize",
+                            "reframe",
+                            "flag-gap"
+                        ]
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,47 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://resume-tweak.local/schemas/review-report.schema.json",
+    "title": "ReviewReport",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "findings"
+    ],
+    "properties": {
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "severity",
+                    "message",
+                    "recommendation"
+                ],
+                "properties": {
+                    "severity": {
+                        "enum": [
+                            "high",
+                            "medium",
+                            "low"
+                        ]
+                    },
+                    "message": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "recommendation": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

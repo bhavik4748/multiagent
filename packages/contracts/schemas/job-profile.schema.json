@@ -1,0 +1,35 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://resume-tweak.local/schemas/job-profile.schema.json",
+    "title": "JobProfile",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "targetRole",
+        "requirements",
+        "keywords"
+    ],
+    "properties": {
+        "targetRole": {
+            "type": "string",
+            "minLength": 1
+        },
+        "seniority": {
+            "type": "string"
+        },
+        "requirements": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            }
+        },
+        "keywords": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            }
+        }
+    }
+}
