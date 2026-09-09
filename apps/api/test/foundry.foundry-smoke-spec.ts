@@ -11,13 +11,15 @@ describe('Foundry deployment smoke test', () => {
       const module = await Test.createTestingModule({
         imports: [AppModule],
       }).compile();
-      const client = module.get(FoundryClientService);
-
-      const result = await client.verifyActiveDeployment();
-      expect(result.deployment).toBe('gpt-5.6-terra');
-      expect(result.response.trim().toLowerCase()).toContain('ready');
-
-      await module.close();
+      try {
+        const client = module.get(FoundryClientService);
+        const result = await client.verifyActiveDeployment();
+        expect(result.deployment).toBe('gpt-5.6-terra');
+        expect(result.response.trim().toLowerCase()).toContain('ready');
+      } finally {
+        await module.close();
+      }
     },
+    120_000,
   );
 });

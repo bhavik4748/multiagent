@@ -218,3 +218,127 @@ h1 {
     cursor: wait;
     opacity: 0.65;
 }
+
+.tailoring,
+.results {
+    max-width: 760px;
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+}
+
+.tailoring h2,
+.results h2 {
+    margin: 0.25rem 0 1.5rem;
+    font-size: 2rem;
+    font-weight: 400;
+}
+
+.tailoring-form {
+    display: grid;
+    gap: 0.7rem;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.tailoring-form label {
+    font-weight: 700;
+}
+
+.tailoring-form label small,
+.result-heading small,
+.matrix-row small,
+.draft-claims small {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.tailoring-form textarea {
+    min-height: 8rem;
+    resize: vertical;
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    background: #fffdf8;
+    color: var(--ink);
+    font: inherit;
+    line-height: 1.45;
+}
+
+.result-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 1rem;
+}
+
+.results h3 {
+    margin-top: 2.2rem;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 1rem;
+}
+
+.matrix {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.matrix-row,
+.gaps {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.9rem;
+    border: 1px solid var(--line);
+    background: rgba(255, 253, 248, 0.72);
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.matrix-row span {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.gap-row,
+.gaps {
+    border-left: 3px solid #a32f24;
+    background: #fff1ed;
+}
+
+.gaps {
+    margin-top: 1rem;
+}
+
+.gaps h3 {
+    margin-top: 0;
+}
+
+.gaps p,
+.gaps li {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.draft-summary {
+    max-width: 680px;
+    font-size: 1.1rem;
+    line-height: 1.55;
+}
+
+.draft-claims {
+    display: grid;
+    gap: 0.8rem;
+    padding-left: 1.4rem;
+}
+
+.draft-claims li {
+    display: grid;
+    gap: 0.3rem;
+    line-height: 1.5;
+}
+
+.draft-claims span {
+    color: var(--accent);
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}

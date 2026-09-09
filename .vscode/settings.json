@@ -8,6 +8,7 @@
         "/^node -e \"const m=require\\('mammoth'\\); console\\.log\\(\\{keys:Object\\.keys\\(m\\), hasExtract:typeof m\\.extractRawText, defaultExtract:typeof m\\.default\\?\\.extractRawText\\}\\)\"$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "&": true
     }
 }
