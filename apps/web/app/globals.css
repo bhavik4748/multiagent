@@ -70,3 +70,104 @@ h1 {
     border-radius: 50%;
     background: var(--accent);
 }
+
+.upload-form {
+    display: grid;
+    gap: 0.75rem;
+    max-width: 520px;
+    margin-top: 2.5rem;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.upload-form label {
+    font-weight: 700;
+}
+
+.upload-form input {
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    background: #fffaf0;
+}
+
+.upload-form button {
+    width: fit-content;
+    padding: 0.8rem 1.2rem;
+    border: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.upload-form button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.error {
+    max-width: 520px;
+    color: #a32f24;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.review {
+    max-width: 760px;
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+}
+
+.review-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.review h2 {
+    margin: 0.25rem 0 1.5rem;
+    font-size: 2rem;
+    font-weight: 400;
+}
+
+.review ol {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0;
+    list-style: none;
+}
+
+.review li {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem;
+    border-left: 3px solid var(--accent);
+    background: rgba(255, 250, 240, 0.7);
+}
+
+.review li strong,
+.review li small {
+    color: var(--muted);
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 0.75rem;
+}
+
+@media (max-width: 640px) {
+    main {
+        padding: 8vh 7vw;
+    }
+
+    .review-heading {
+        align-items: start;
+        flex-direction: column;
+    }
+}
+
+.review-help { color: var(--muted); font-family: 'Segoe UI', sans-serif; line-height: 1.5; }
+
+.claim-meta { display: flex; justify-content: space-between; gap: 1rem; }
+.review textarea { width: 100%; min-height: 4.5rem; resize: vertical; border: 1px solid var(--line); background: #fffdf8; color: var(--ink); font: inherit; line-height: 1.45; padding: 0.65rem; }
+.review textarea:disabled { border: 0; background: transparent; padding: 0; resize: none; }
+.remove-claim { width: fit-content; border: 0; background: transparent; color: #a32f24; cursor: pointer; font-weight: 700; padding: 0; }
+.approve-button { margin-top: 1rem; padding: 0.8rem 1.2rem; border: 0; background: var(--accent); color: white; cursor: pointer; font-weight: 700; }
+.approve-button:disabled { cursor: wait; opacity: 0.65; }

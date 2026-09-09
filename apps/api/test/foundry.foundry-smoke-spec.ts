@@ -3,21 +3,21 @@ import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 
 describe('Foundry deployment smoke test', () => {
-    const enabled = process.env.FOUNDRY_SMOKE_TEST_ENABLED === 'true';
+  const enabled = process.env.FOUNDRY_SMOKE_TEST_ENABLED === 'true';
 
-    (enabled ? it : it.skip)(
-        'invokes only the centrally configured deployment',
-        async () => {
-            const module = await Test.createTestingModule({
-                imports: [AppModule],
-            }).compile();
-            const client = module.get(FoundryClientService);
+  (enabled ? it : it.skip)(
+    'invokes only the centrally configured deployment',
+    async () => {
+      const module = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      const client = module.get(FoundryClientService);
 
-            const result = await client.verifyActiveDeployment();
-            expect(result.deployment).toBe('gpt-5.6-terra');
-            expect(result.response.trim().toLowerCase()).toContain('ready');
+      const result = await client.verifyActiveDeployment();
+      expect(result.deployment).toBe('gpt-5.6-terra');
+      expect(result.response.trim().toLowerCase()).toContain('ready');
 
-            await module.close();
-        },
-    );
+      await module.close();
+    },
+  );
 });

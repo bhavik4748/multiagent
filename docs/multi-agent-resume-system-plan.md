@@ -15,33 +15,63 @@ This document is the implementation reference for the application.
 
 ## Implementation Status
 
-**Current phase: Phase 1 — Resume Ingestion and Canonical Profile**
+**Current phase: Phase 2 — Initial Tailoring Workflow**
 
-**Phase 0 foundation status: Complete (2026-09-08)**
+**Status as of 2026-09-09: Phase 1 DOCX-first exit complete**
 
-The Phase 0 backend foundation is implemented and locally validated. The completed
-foundation includes the pnpm TypeScript workspace, NestJS API, minimal Next.js
-shell, shared contracts and JSON Schema artifacts, centralized Foundry model
-configuration, server-side `.env` loading, Swagger/OpenAPI setup, health endpoint,
-evidence guard, anonymized fixtures, and a live Foundry smoke test against
-`gpt-5.6-terra`.
+The foundation work and the agreed DOCX-first Phase 1 exit slice are complete.
+The application can now create a user-reviewed, approved canonical factual profile
+that is safe to use as the evidence source for Phase 2 tailoring.
 
-Validation completed:
+### Completed so far
+
+- pnpm TypeScript workspace and monorepo structure
+- NestJS API foundation with Swagger/OpenAPI setup
+- minimal Next.js shell and local upload/review page
+- server-side config and model-profile wiring
+- evidence guard for unsupported claims
+- anonymized fixture data for job description and resume profile
+- Foundry connectivity and smoke-test validation against `gpt-5.6-terra`
+- DOCX upload API endpoint with file-size/type validation
+- DOCX text extraction into a canonical profile draft
+- stored source segments and claim-to-source traceability
+- local persistence of uploaded source files and canonical profile JSON
+- browser upload flow to preview, edit, remove, and approve extracted claims
+- claim section classification for contact, summary, skills, experience, education, and certifications
+- explicit draft/approved profile lifecycle with persisted approval timestamp
+- valid anonymized DOCX fixture
+- HTTP end-to-end tests for upload, retrieval, approval, and malformed-document rejection
+
+### Validated work
 
 - NestJS API build passes.
-- Unit tests pass, including rejection of unsupported resume claims.
-- HTTP end-to-end tests pass for health and OpenAPI.
-- NestJS development server starts with zero compilation errors.
-- The NestJS-resolved Foundry client successfully invokes `gpt-5.6-terra`.
+- Next.js web app build passes.
+- malformed DOCX upload fails with a clean 400 response rather than a 500.
+- valid DOCX upload, profile retrieval, and approval complete through the HTTP API.
+- approval retains source evidence while allowing reviewer wording corrections and claim removal.
+- shared contracts, NestJS API, and Next.js web app all build successfully.
+- Phase 1 HTTP end-to-end suite passes: 4 tests.
 
-Remaining work is intentionally carried into later phases:
+### Deferred Phase 1 enhancements
 
-- Persist resolved model profile metadata when tailoring runs and versions exist.
-- Wire schema validation into every agent handoff when the orchestrator is added.
-- Build the functional upload/review UI on top of the Phase 1 API.
+The following items are intentionally deferred and do **not** block Phase 2,
+which will consume the approved DOCX-first canonical profile:
 
-**Next development objective:** implement Phase 1 resume ingestion, beginning with
-DOCX-only upload and extraction into a reviewable canonical factual profile.
+- text-based PDF extraction
+- OCR abstraction and mandatory validation for scanned PDFs
+- richer section-specific parsing beyond deterministic heading classification
+- complete source/version manifest structure for later version-management phases
+
+---
+
+### Phase 1 working status
+
+**Implemented scope:** DOCX upload, source extraction, claim/source traceability,
+section classification, reviewer edits/removals, explicit approval, local persistence,
+and HTTP end-to-end coverage.
+
+**Phase 2 entry condition:** satisfied. Tailoring must accept only a profile whose
+`status` is `approved`.
 
 ---
 
@@ -666,7 +696,7 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 ### Phase 1 — Resume Ingestion and Canonical Profile
 
-**Status: Next**
+**Status: Complete for DOCX-first scope (2026-09-09)**
 
 **Objective:** Safely accept DOCX/PDF files and create a user-validated factual profile.
 
@@ -690,12 +720,17 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 5. Produce a canonical profile draft with stable fact IDs and source references.
 6. Add API tests using an anonymized DOCX fixture before building the review UI.
 
-**Acceptance criteria**
+**Completed acceptance criteria for the Phase 2 entry scope**
 
-- User can upload a DOCX and confirm the extracted work history, skills, education, and contact details.
-- User can upload a text PDF and review extracted content.
-- Scanned PDFs are marked as requiring validation.
-- Canonical profile preserves source references for every experience bullet.
+- [x] User can upload a DOCX, edit/remove extracted claims, and explicitly approve the factual profile.
+- [x] Canonical claims retain source references after approval.
+- [x] Contact, skills, experience, education, summary, and certification headings are deterministically classified.
+- [x] Valid DOCX ingestion, retrieval, approval, and malformed upload rejection are verified with HTTP tests.
+
+**Deferred acceptance criteria**
+
+- [ ] User can upload a text PDF and review extracted content. Deferred beyond DOCX-first scope.
+- [ ] Scanned PDFs are marked as requiring validation. Deferred with OCR support.
 
 ### Phase 2 — Initial Tailoring Workflow
 

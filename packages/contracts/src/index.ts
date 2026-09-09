@@ -20,11 +20,30 @@ export interface ResumeClaim {
     id: string;
     text: string;
     evidence: readonly EvidenceReference[];
+    section: ResumeSection;
+}
+
+export type ResumeSection =
+    | 'contact'
+    | 'summary'
+    | 'skills'
+    | 'experience'
+    | 'education'
+    | 'certifications'
+    | 'other';
+
+export interface ResumeSourceSegment {
+    id: string;
+    text: string;
+    sequence: number;
 }
 
 export interface CanonicalResumeProfile {
     resumeId: string;
     claims: readonly ResumeClaim[];
+    sourceSegments: readonly ResumeSourceSegment[];
+    status: 'draft' | 'approved';
+    approvedAt?: string;
 }
 
 export interface FinalResumePackage {
