@@ -15,13 +15,13 @@ This document is the implementation reference for the application.
 
 ## Implementation Status
 
-**Current phase: Phase 2 — Initial Tailoring Workflow**
+**Current phase: Phase 2 — Initial Tailoring Workflow complete**
 
-**Status as of 2026-09-09: Phase 1 DOCX-first exit complete**
+**Status as of 2026-09-09: Phase 2 initial tailoring workflow complete**
 
-The foundation work and the agreed DOCX-first Phase 1 exit slice are complete.
-The application can now create a user-reviewed, approved canonical factual profile
-that is safe to use as the evidence source for Phase 2 tailoring.
+The foundation work, DOCX-first Phase 1 exit slice, and Phase 2 initial tailoring
+workflow are complete. The application can create a source-backed tailoring draft
+from an approved canonical profile and a pasted job description.
 
 ### Completed so far
 
@@ -41,6 +41,13 @@ that is safe to use as the evidence source for Phase 2 tailoring.
 - explicit draft/approved profile lifecycle with persisted approval timestamp
 - valid anonymized DOCX fixture
 - HTTP end-to-end tests for upload, retrieval, approval, and malformed-document rejection
+- approved-profile-only tailoring endpoint and locally persisted tailoring runs
+- job-description and optional instruction controls in the browser workflow
+- Job Requirement Analyst, Resume Match Analyst, and Resume Tailoring Writer stages
+- strict JSON Schema response requests and runtime validation for every Phase 2 handoff
+- evidence matrix, explicit unmatched-requirements gaps, and draft preview
+- tailoring reruns using revised job descriptions without changing the factual profile
+- tailoring HTTP end-to-end coverage and live Foundry smoke-test validation
 
 ### Validated work
 
@@ -51,6 +58,9 @@ that is safe to use as the evidence source for Phase 2 tailoring.
 - approval retains source evidence while allowing reviewer wording corrections and claim removal.
 - shared contracts, NestJS API, and Next.js web app all build successfully.
 - Phase 1 HTTP end-to-end suite passes: 4 tests.
+- Phase 2 unit suite passes: 9 tests.
+- Combined API HTTP end-to-end suites pass: 8 tests.
+- The opt-in live Foundry smoke test passes with `gpt-5.6-terra`.
 
 ### Deferred Phase 1 enhancements
 
@@ -70,8 +80,9 @@ which will consume the approved DOCX-first canonical profile:
 section classification, reviewer edits/removals, explicit approval, local persistence,
 and HTTP end-to-end coverage.
 
-**Phase 2 entry condition:** satisfied. Tailoring must accept only a profile whose
-`status` is `approved`.
+**Phase 2 result:** tailoring accepts only a profile whose `status` is `approved`.
+It persists the run locally, exposes the job profile, evidence matrix, gaps, and
+draft for review, and prevents unreferenced evidence from reaching the draft.
 
 ---
 
@@ -672,7 +683,7 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 - [x] One authenticated call to `gpt-5.6-terra` succeeds from the local application.
 - [x] No agent, prompt, or frontend component embeds a model/deployment name; configuration resolves it centrally.
-- [ ] Run metadata identifies the resolved model profile and deployment. Complete when tailoring-run persistence is implemented.
+- [x] Run metadata identifies the resolved model profile and deployment.
 - [x] Evidence validation rejects unsupported resume-claim additions.
 - [x] Swagger/OpenAPI endpoints and HTTP tests are available for non-sensitive local endpoints.
 - [x] Standalone JSON Schema artifacts exist for the core agent contracts.
@@ -734,27 +745,40 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 ### Phase 2 — Initial Tailoring Workflow
 
+**Status: Complete (2026-09-09)**
+
 **Objective:** Create an evidence-grounded draft tailored to a pasted job description.
 
-**Deliverables**
+**Completed deliverables**
 
-- Job-description input UI.
-- Optional **Additional context / special instructions** text box with examples and character limit.
-- Orchestrator agent.
-- Job Requirement Analyst sub-agent.
-- Resume Match Analyst sub-agent.
-- Resume Tailoring Writer sub-agent.
-- Evidence matrix display and unmatched-requirements display.
-- Draft preview using Markdown/HTML.
-- Swagger-documented tailoring endpoints with request/response examples and end-to-end workflow tests.
+- [x] Job-description input UI.
+- [x] Optional **Additional context / special instructions** text box with examples and character limit.
+- [x] Orchestrated job analysis, evidence matching, and factual draft generation.
+- [x] Job Requirement Analyst sub-agent.
+- [x] Resume Match Analyst sub-agent.
+- [x] Resume Tailoring Writer sub-agent.
+- [x] JSON Schema-constrained Foundry output plus runtime contract validation for all handoffs.
+- [x] Evidence matrix display and unmatched-requirements display.
+- [x] Structured draft preview with evidence references.
+- [x] Swagger-documented tailoring endpoints, response examples, and end-to-end workflow tests.
+- [x] Local run persistence in `data/tailoring-runs/`; this directory is intentionally Git-ignored because it can contain user-provided job descriptions and resume-derived data.
 
-**Acceptance criteria**
+**Completed acceptance criteria**
 
-- A job description produces a structured job profile and evidence matrix.
-- Each tailored bullet references source evidence.
-- Unsupported requirements appear as gaps rather than new resume claims.
-- User can revise the job description and rerun the workflow.
-- User instructions influence emphasis, tone, length, and ordering only when compatible with factual evidence and ATS guardrails.
+- [x] A job description produces a structured job profile and evidence matrix.
+- [x] Each tailored bullet references source evidence.
+- [x] Unsupported requirements appear as gaps rather than new resume claims.
+- [x] User can revise the job description and rerun the workflow.
+- [x] User instructions influence emphasis, tone, length, and ordering only when compatible with factual evidence and ATS guardrails.
+
+**Local configuration and testing**
+
+- Configure server-only Foundry credentials in `apps/api/.env` using
+  `apps/api/.env.example` as the template. Never add Foundry credentials to the
+  Next.js application or a `NEXT_PUBLIC_*` variable.
+- The live smoke test is opt-in: set `FOUNDRY_SMOKE_TEST_ENABLED=true` and run
+  `pnpm --filter @resume-tweak/api test:foundry-smoke` from the repository root.
+- The API must be restarted after changing `apps/api/.env`.
 
 ### Phase 3 — Quality Review and Approval
 
