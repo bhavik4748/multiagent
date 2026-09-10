@@ -6,11 +6,21 @@ type Evidence = { sourceFactId: string; sourceSegmentId: string };
 type Claim = { id: string; text: string; section: string; evidence: Evidence[] };
 type Profile = { resumeId: string; claims: Claim[]; status: 'draft' | 'approved' };
 type MatrixRow = { requirementId: string; requirement: string; strength: 'strong' | 'partial' | 'none'; action: string; evidence: Evidence[] };
+type ReviewFinding = { id: string; reviewer: 'ats' | 'readability'; severity: 'high' | 'medium' | 'low'; message: string; recommendation: string; affectedClaimIds: string[] };
+type ReviewReport = { reviewer: 'ats' | 'readability'; findings: ReviewFinding[] };
+type FinalResume = { summary?: string; claims: Claim[]; unresolvedGaps: string[]; decisions: { findingId: string; decision: 'accepted' | 'rejected' | 'unresolved'; rationale: string; affectedClaimIds: string[] }[]; changeLog: string[] };
 type TailoringRun = {
-    status: 'completed' | 'failed'; deployment: string; modelProfileId: string; gaps: string[]; error?: string;
+    runId: string; status: 'completed' | 'failed'; deployment: string; modelProfileId: string; gaps: string[]; error?: string;
     jobProfile?: { targetRole: string; seniority?: string };
     evidenceMatrix?: { rows: MatrixRow[] };
     tailoredDraft?: { summary?: string; claims: Claim[] };
+    atsReview?: ReviewReport;
+    readabilityReview?: ReviewReport;
+    finalResume?: FinalResume;
+    reviewStatus: 'not-started' | 'completed' | 'failed';
+    reviewError?: string;
+    approvalStatus: 'pending' | 'approved';
+    approvedAt?: string;
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -31,6 +41,7 @@ export default function HomePage() {
     const [uploading, setUploading] = useState(false);
     const [approving, setApproving] = useState(false);
     const [tailoring, setTailoring] = useState(false);
+    const [approvingFinal, setApprovingFinal] = useState(false);
 
     async function upload(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -73,8 +84,20 @@ export default function HomePage() {
         finally { setTailoring(false); }
     }
 
+    async function approveFinalContent() {
+        if (!run?.finalResume || run.approvalStatus === 'approved') return;
+        setApprovingFinal(true); setError('');
+        try {
+            const result = await parseResponse(await fetch(`${apiUrl}/api/tailoring-runs/${run.runId}/approve`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+            }));
+            setRun(result);
+        } catch (reason) { setError(reason instanceof Error ? reason.message : 'Final content approval failed.'); }
+        finally { setApprovingFinal(false); }
+    }
+
     return <main>
-        <p className="eyebrow">Phase 2 / Evidence-grounded tailoring</p>
+        <p className="eyebrow">Phase 3 / Evidence-grounded quality review</p>
         <h1>Tailor the story, not the facts.</h1>
         <p className="intro">Review the factual record, then compare it with a job description. Missing requirements are shown as gaps and are never added to the draft.</p>
         <form className="upload-form" onSubmit={upload}>
@@ -107,7 +130,18 @@ export default function HomePage() {
                 <h3>Requirement-to-evidence map</h3><div className="matrix">{run.evidenceMatrix?.rows.map((row) => <article className={`matrix-row ${row.strength === 'none' ? 'gap-row' : ''}`} key={row.requirementId}><strong>{row.requirement}</strong><span>{row.strength} · {row.action}</span><small>{row.evidence.length ? row.evidence.map((item) => item.sourceFactId).join(', ') : 'No approved evidence'}</small></article>)}</div>
                 {run.gaps.length > 0 && <aside className="gaps"><h3>Unmatched requirements</h3><p>These requirements have no approved evidence and were not added to the resume.</p><ul>{run.gaps.map((gap) => <li key={gap}>{gap}</li>)}</ul></aside>}
                 <h3>Tailored draft preview</h3>{run.tailoredDraft?.summary && <p className="draft-summary">{run.tailoredDraft.summary}</p>}<ol className="draft-claims">{run.tailoredDraft?.claims.map((claim) => <li key={claim.id}><span>{claim.section}</span>{claim.text}<small>Evidence: {claim.evidence.map((item) => item.sourceFactId).join(', ')}</small></li>)}</ol>
-                <p className="review-help">This is a Phase 2 review draft. Approval, document generation, and downloads follow in later phases.</p>
+                {run.reviewStatus === 'failed' && <p className="error">Quality review could not complete: {run.reviewError}</p>}
+                {run.reviewStatus === 'completed' && run.finalResume && <>
+                    <h3>Quality review</h3>
+                    <div className="review-reports">
+                        {[run.atsReview, run.readabilityReview].filter((report): report is ReviewReport => Boolean(report)).map((report) => <article className="review-report" key={report.reviewer}><h4>{report.reviewer === 'ats' ? 'ATS compatibility' : 'Recruiter readability'}</h4>{report.findings.length === 0 ? <p>No findings.</p> : <ol>{report.findings.map((finding) => <li key={finding.id} className={`finding finding-${finding.severity}`}><strong>{finding.severity}</strong><span>{finding.message}</span><small>Recommendation: {finding.recommendation}</small></li>)}</ol>}</article>)}
+                    </div>
+                    <h3>Final reviewed content</h3>{run.finalResume.summary && <p className="draft-summary">{run.finalResume.summary}</p>}<ol className="draft-claims">{run.finalResume.claims.map((claim) => <li key={claim.id}><span>{claim.section}</span>{claim.text}<small>Evidence: {claim.evidence.map((item) => item.sourceFactId).join(', ')}</small></li>)}</ol>
+                    <h3>Recommendation decisions</h3><div className="decision-list">{run.finalResume.decisions.map((decision) => <article key={decision.findingId}><strong>{decision.decision}</strong><span>{decision.rationale}</span></article>)}</div>
+                    <h3>Change log</h3><ul className="change-log">{run.finalResume.changeLog.map((change) => <li key={change}>{change}</li>)}</ul>
+                    {run.finalResume.unresolvedGaps.length > 0 && <aside className="gaps"><h3>Unresolved gaps remain outside the resume</h3><ul>{run.finalResume.unresolvedGaps.map((gap) => <li key={gap}>{gap}</li>)}</ul></aside>}
+                    {run.approvalStatus === 'approved' ? <p className="approval-confirmation">Final content approved {run.approvedAt ? `on ${new Date(run.approvedAt).toLocaleString()}` : ''}. DOCX and PDF generation arrives in Phase 4.</p> : <><button className="approve-button" type="button" onClick={approveFinalContent} disabled={approvingFinal}>{approvingFinal ? 'Saving final approval…' : 'Approve final content'}</button><p className="review-help">Approval confirms the reviewed content only. No files are generated or saved as versions until Phase 4.</p></>}
+                </>}
             </>}
         </section>}
     </main>;

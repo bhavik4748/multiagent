@@ -266,7 +266,7 @@ h1 {
 .result-heading {
     display: flex;
     justify-content: space-between;
-    align-items: end;
+    align-items: flex-end;
     gap: 1rem;
 }
 
@@ -341,4 +341,85 @@ h1 {
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.review-reports {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.8rem;
+}
+
+.review-report,
+.decision-list article {
+    padding: 1rem;
+    border: 1px solid var(--line);
+    background: rgba(255, 253, 248, 0.72);
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.review-report h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.review-report ol {
+    display: grid;
+    gap: 0.65rem;
+    padding: 0;
+    list-style: none;
+}
+
+.finding,
+.decision-list article {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.finding strong,
+.decision-list strong {
+    width: fit-content;
+    padding: 0.15rem 0.4rem;
+    color: #fff;
+    background: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.finding-high strong {
+    background: #a32f24;
+}
+
+.finding-medium strong {
+    background: #9a6a1d;
+}
+
+.finding-low strong {
+    background: #4e7064;
+}
+
+.finding small,
+.decision-list span,
+.change-log,
+.approval-confirmation {
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.decision-list {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.change-log {
+    padding-left: 1.3rem;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.approval-confirmation {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-left: 3px solid #4e7064;
+    background: #edf5ef;
+    font-family: 'Segoe UI', sans-serif;
 }

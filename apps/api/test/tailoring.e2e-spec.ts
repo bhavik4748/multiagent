@@ -77,7 +77,73 @@ describe('Phase 2 tailoring API (e2e)', () => {
             resumeId: profile.resumeId,
             summary: 'Evidence-grounded TypeScript API engineer.',
             markdown: '## Summary\nEvidence-grounded TypeScript API engineer.',
-            claims: [{ id: 'draft-001', ...profile.claims[0] }],
+            claims: [{ ...profile.claims[0], id: 'draft-001' }],
+          }),
+        ),
+        reviewAts: jest.fn(async () => ({
+          reviewer: 'ats',
+          findings: [
+            {
+              id: 'ats-001',
+              reviewer: 'ats',
+              severity: 'medium',
+              message: 'Use a standard Experience heading.',
+              recommendation: 'Keep the conventional Experience heading.',
+              affectedClaimIds: ['draft-001'],
+            },
+          ],
+        })),
+        reviewReadability: jest.fn(async () => ({
+          reviewer: 'readability',
+          findings: [
+            {
+              id: 'readability-001',
+              reviewer: 'readability',
+              severity: 'low',
+              message: 'The summary can be more direct.',
+              recommendation: 'Lead with TypeScript API experience.',
+              affectedClaimIds: ['draft-001'],
+            },
+          ],
+        })),
+        editFinalResume: jest.fn(
+          async (
+            profile: {
+              resumeId: string;
+              claims: {
+                id: string;
+                text: string;
+                section: string;
+                evidence: unknown[];
+              }[];
+            },
+            _draft: unknown,
+            _jobProfile: unknown,
+            _matrix: unknown,
+            _atsReview: unknown,
+            _readabilityReview: unknown,
+            gaps: string[],
+          ) => ({
+            resumeId: profile.resumeId,
+            summary: 'Evidence-grounded TypeScript API engineer.',
+            markdown: '## Summary\nEvidence-grounded TypeScript API engineer.',
+            claims: [{ ...profile.claims[0], id: 'final-001' }],
+            unresolvedGaps: gaps,
+            decisions: [
+              {
+                findingId: 'ats-001',
+                decision: 'accepted',
+                rationale: 'Uses standard ATS-safe headings.',
+                affectedClaimIds: ['final-001'],
+              },
+              {
+                findingId: 'readability-001',
+                decision: 'accepted',
+                rationale: 'Leads with supported API experience.',
+                affectedClaimIds: ['final-001'],
+              },
+            ],
+            changeLog: ['Retained standard headings and concise summary.'],
           }),
         ),
       })
@@ -163,6 +229,8 @@ describe('Phase 2 tailoring API (e2e)', () => {
       modelProfileId: 'default',
       deployment: 'gpt-5.6-terra',
       gaps: ['Kubernetes production experience'],
+      reviewStatus: 'completed',
+      approvalStatus: 'pending',
     });
     expect(run.body.tailoredDraft.claims[0].evidence).toEqual(
       approval.body.claims[0].evidence,
@@ -181,6 +249,15 @@ describe('Phase 2 tailoring API (e2e)', () => {
       status: 'completed',
     });
     expect(analyzedJobDescriptions).toEqual([jobDescription]);
+
+    const approved = await request(app.getHttpServer())
+      .post(`/api/tailoring-runs/${run.body.runId}/approve`)
+      .send({ approvalNote: 'Content reviewed.' })
+      .expect(201);
+    expect(approved.body).toMatchObject({
+      approvalStatus: 'approved',
+      approvalNote: 'Content reviewed.',
+    });
   });
 
   it('creates a separate run when the user revises the job description', async () => {
@@ -214,6 +291,9 @@ describe('Phase 2 tailoring API (e2e)', () => {
       response.body.paths['/api/resumes/{resumeId}/tailoring-runs'],
     ).toBeDefined();
     expect(response.body.paths['/api/tailoring-runs/{runId}']).toBeDefined();
+    expect(
+      response.body.paths['/api/tailoring-runs/{runId}/approve'],
+    ).toBeDefined();
   });
 
   afterEach(async () => {

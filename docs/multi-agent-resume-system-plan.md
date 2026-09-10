@@ -15,9 +15,9 @@ This document is the implementation reference for the application.
 
 ## Implementation Status
 
-**Current phase: Phase 2 — Initial Tailoring Workflow complete**
+**Current phase: Phase 3 — Quality Review and Approval complete**
 
-**Status as of 2026-09-09: Phase 2 initial tailoring workflow complete**
+**Status as of 2026-09-10: Phase 3 quality review and approval complete**
 
 The foundation work, DOCX-first Phase 1 exit slice, and Phase 2 initial tailoring
 workflow are complete. The application can create a source-backed tailoring draft
@@ -48,6 +48,9 @@ from an approved canonical profile and a pasted job description.
 - evidence matrix, explicit unmatched-requirements gaps, and draft preview
 - tailoring reruns using revised job descriptions without changing the factual profile
 - tailoring HTTP end-to-end coverage and live Foundry smoke-test validation
+- ATS Compatibility Reviewer and Recruiter Readability Reviewer stages executed in parallel
+- Final Resume Editor stage with evidence validation, reviewer-decision rationale, change log, and preserved gaps
+- explicit final-content approval endpoint and browser control; approval records no generated document artifacts until Phase 4
 
 ### Validated work
 
@@ -782,23 +785,25 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 ### Phase 3 — Quality Review and Approval
 
+**Status: Complete (2026-09-10)**
+
 **Objective:** Enforce ATS compatibility and readability before files are generated.
 
-**Deliverables**
+**Completed deliverables**
 
-- ATS Compatibility Reviewer sub-agent.
-- Recruiter Readability Reviewer sub-agent.
-- Parallel reviewer execution after drafting.
-- Final Resume Editor sub-agent.
-- Review findings UI, accepted/rejected recommendation rationale, and change log.
-- Explicit user approval control.
+- [x] ATS Compatibility Reviewer sub-agent.
+- [x] Recruiter Readability Reviewer sub-agent.
+- [x] Parallel reviewer execution after drafting.
+- [x] Final Resume Editor sub-agent.
+- [x] Review findings UI, accepted/rejected recommendation rationale, and change log.
+- [x] Explicit user approval control.
 
-**Acceptance criteria**
+**Completed acceptance criteria**
 
-- Both reviewers return schema-valid findings.
-- Final content resolves high-severity supported issues.
-- Final editor cannot add an unreferenced factual claim.
-- No final file is saved until the user approves it.
+- [x] Both reviewers return schema-valid findings.
+- [x] Final content preserves reviewer decisions and unresolved gaps.
+- [x] Final editor cannot add an unreferenced factual claim.
+- [x] No final file is saved until the user approves it; Phase 3 approval records content approval only.
 
 ### Phase 4 — DOCX/PDF Generation and Version Management
 

@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import type {
   CanonicalResumeProfile,
   EvidenceMatrix,
+  FinalResumePackage,
   JobProfile,
+  ReviewReport,
   TailoredResumeDraft,
 } from '@resume-tweak/contracts';
 import {
   isEvidenceMatrix,
+  isFinalResumePackage,
   isJobProfile,
+  isReviewReport,
   isTailoredResumeDraft,
 } from '@resume-tweak/contracts';
 import { FoundryClientService } from './foundry-client.service';
@@ -125,9 +129,61 @@ const tailoredDraftSchema = {
   },
 };
 
+const reviewFindingSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'reviewer', 'severity', 'message', 'recommendation', 'affectedClaimIds'],
+  properties: {
+    id: { type: 'string' },
+    reviewer: { type: 'string', enum: ['ats', 'readability'] },
+    severity: { type: 'string', enum: ['high', 'medium', 'low'] },
+    message: { type: 'string' },
+    recommendation: { type: 'string' },
+    affectedClaimIds: { type: 'array', items: { type: 'string' } },
+  },
+};
+
+const reviewReportSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reviewer', 'findings'],
+  properties: {
+    reviewer: { type: 'string', enum: ['ats', 'readability'] },
+    findings: { type: 'array', items: reviewFindingSchema },
+  },
+};
+
+const finalResumeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['resumeId', 'summary', 'markdown', 'claims', 'unresolvedGaps', 'decisions', 'changeLog'],
+  properties: {
+    resumeId: { type: 'string' },
+    summary: { type: 'string' },
+    markdown: { type: 'string' },
+    claims: tailoredDraftSchema.properties.claims,
+    unresolvedGaps: { type: 'array', items: { type: 'string' } },
+    decisions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['findingId', 'decision', 'rationale', 'affectedClaimIds'],
+        properties: {
+          findingId: { type: 'string' },
+          decision: { type: 'string', enum: ['accepted', 'rejected', 'unresolved'] },
+          rationale: { type: 'string' },
+          affectedClaimIds: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+    changeLog: { type: 'array', items: { type: 'string' } },
+  },
+};
+
 @Injectable()
 export class TailoringAgentsService {
-  constructor(private readonly foundry: FoundryClientService) {}
+  constructor(private readonly foundry: FoundryClientService) { }
 
   async analyzeJob(jobDescription: string): Promise<JobProfile> {
     return this.foundry.createStructuredResponse<JobProfile>({
@@ -168,6 +224,56 @@ export class TailoringAgentsService {
       input: { profile, jobProfile, evidenceMatrix, additionalInstructions },
       validate: isTailoredResumeDraft,
       schema: tailoredDraftSchema,
+    });
+  }
+
+  async reviewAts(
+    draft: TailoredResumeDraft,
+    jobProfile: JobProfile,
+    profile: CanonicalResumeProfile,
+  ): Promise<ReviewReport> {
+    return this.foundry.createStructuredResponse<ReviewReport>({
+      name: 'ats_compatibility_reviewer',
+      instructions:
+        'Review the supplied evidence-backed draft for ATS compatibility. Check supported required-keyword coverage, standard headings, chronology clarity, simple structure, unnatural repetition, and unsupported claims. Findings must reference only draft claim IDs. Recommend changes but do not write resume content. Return JSON only.',
+      input: { draft, jobProfile, profile },
+      validate: (value): value is ReviewReport =>
+        isReviewReport(value) && value.reviewer === 'ats',
+      schema: reviewReportSchema,
+    });
+  }
+
+  async reviewReadability(
+    draft: TailoredResumeDraft,
+    jobProfile: JobProfile,
+  ): Promise<ReviewReport> {
+    return this.foundry.createStructuredResponse<ReviewReport>({
+      name: 'recruiter_readability_reviewer',
+      instructions:
+        'Review the supplied resume draft for recruiter readability: impact-first wording, hierarchy, concise career narrative, jargon, redundancy, appropriate length, and scanability. Findings must reference only draft claim IDs. Recommend changes but do not write resume content. Return JSON only.',
+      input: { draft, jobProfile },
+      validate: (value): value is ReviewReport =>
+        isReviewReport(value) && value.reviewer === 'readability',
+      schema: reviewReportSchema,
+    });
+  }
+
+  async editFinalResume(
+    profile: CanonicalResumeProfile,
+    draft: TailoredResumeDraft,
+    jobProfile: JobProfile,
+    evidenceMatrix: EvidenceMatrix,
+    atsReview: ReviewReport,
+    readabilityReview: ReviewReport,
+    gaps: readonly string[],
+  ): Promise<FinalResumePackage> {
+    return this.foundry.createStructuredResponse<FinalResumePackage>({
+      name: 'final_resume_editor',
+      instructions:
+        'Produce the final structured resume from the draft and valid reviewer recommendations. Preserve or improve factual accuracy: every claim must cite exact canonical evidence references, and no unsupported facts may be added. Record one accepted, rejected, or unresolved decision for every supplied finding with a rationale. Keep unmatched requirements in unresolvedGaps outside the resume. Return JSON only.',
+      input: { profile, draft, jobProfile, evidenceMatrix, atsReview, readabilityReview, gaps },
+      validate: isFinalResumePackage,
+      schema: finalResumeSchema,
     });
   }
 }

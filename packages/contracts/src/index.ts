@@ -46,9 +46,39 @@ export interface CanonicalResumeProfile {
     approvedAt?: string;
 }
 
+export type ReviewKind = 'ats' | 'readability';
+export type ReviewSeverity = 'high' | 'medium' | 'low';
+export type RecommendationDecisionStatus = 'accepted' | 'rejected' | 'unresolved';
+
+export interface ReviewFinding {
+    id: string;
+    reviewer: ReviewKind;
+    severity: ReviewSeverity;
+    message: string;
+    recommendation: string;
+    affectedClaimIds: readonly string[];
+}
+
+export interface ReviewReport {
+    reviewer: ReviewKind;
+    findings: readonly ReviewFinding[];
+}
+
+export interface ReviewRecommendationDecision {
+    findingId: string;
+    decision: RecommendationDecisionStatus;
+    rationale: string;
+    affectedClaimIds: readonly string[];
+}
+
 export interface FinalResumePackage {
     resumeId: string;
-    claims: readonly ResumeClaim[];
+    summary?: string;
+    markdown: string;
+    claims: readonly TailoredResumeClaim[];
+    unresolvedGaps: readonly string[];
+    decisions: readonly ReviewRecommendationDecision[];
+    changeLog: readonly string[];
 }
 
 export type EvidenceStrength = 'strong' | 'partial' | 'none';
@@ -109,6 +139,15 @@ export interface TailoringRunResult {
     jobProfile?: JobProfile;
     evidenceMatrix?: EvidenceMatrix;
     tailoredDraft?: TailoredResumeDraft;
+    atsReview?: ReviewReport;
+    readabilityReview?: ReviewReport;
+    finalResume?: FinalResumePackage;
+    reviewStatus: 'not-started' | 'completed' | 'failed';
+    reviewCompletedAt?: string;
+    reviewError?: string;
+    approvalStatus: 'pending' | 'approved';
+    approvedAt?: string;
+    approvalNote?: string;
     gaps: readonly string[];
     additionalInstructions?: string;
     modelProfileId: string;
@@ -205,6 +244,66 @@ export function isTailoredResumeDraft(value: unknown): value is TailoredResumeDr
                 claim.evidence.length > 0 &&
                 claim.evidence.every(isEvidenceReference),
         )
+    );
+}
+
+/** Validates untrusted structured output returned by either Phase 3 reviewer. */
+export function isReviewReport(value: unknown): value is ReviewReport {
+    return (
+        isRecord(value) &&
+        ['ats', 'readability'].includes(String(value.reviewer)) &&
+        Array.isArray(value.findings) &&
+        value.findings.every(
+            (finding) =>
+                isRecord(finding) &&
+                typeof finding.id === 'string' &&
+                finding.id.length > 0 &&
+                finding.reviewer === value.reviewer &&
+                ['high', 'medium', 'low'].includes(String(finding.severity)) &&
+                typeof finding.message === 'string' &&
+                finding.message.length > 0 &&
+                typeof finding.recommendation === 'string' &&
+                finding.recommendation.length > 0 &&
+                isStringArray(finding.affectedClaimIds),
+        )
+    );
+}
+
+/** Validates untrusted structured output returned by the Final Resume Editor. */
+export function isFinalResumePackage(value: unknown): value is FinalResumePackage {
+    return (
+        isRecord(value) &&
+        typeof value.resumeId === 'string' &&
+        value.resumeId.length > 0 &&
+        (value.summary === undefined || typeof value.summary === 'string') &&
+        typeof value.markdown === 'string' &&
+        value.markdown.length > 0 &&
+        Array.isArray(value.claims) &&
+        value.claims.every(
+            (claim) =>
+                isRecord(claim) &&
+                typeof claim.id === 'string' &&
+                claim.id.length > 0 &&
+                typeof claim.text === 'string' &&
+                claim.text.length > 0 &&
+                ['contact', 'summary', 'skills', 'experience', 'education', 'certifications', 'other'].includes(String(claim.section)) &&
+                Array.isArray(claim.evidence) &&
+                claim.evidence.length > 0 &&
+                claim.evidence.every(isEvidenceReference),
+        ) &&
+        isStringArray(value.unresolvedGaps) &&
+        Array.isArray(value.decisions) &&
+        value.decisions.every(
+            (decision) =>
+                isRecord(decision) &&
+                typeof decision.findingId === 'string' &&
+                decision.findingId.length > 0 &&
+                ['accepted', 'rejected', 'unresolved'].includes(String(decision.decision)) &&
+                typeof decision.rationale === 'string' &&
+                decision.rationale.length > 0 &&
+                isStringArray(decision.affectedClaimIds),
+        ) &&
+        isStringArray(value.changeLog)
     );
 }
 

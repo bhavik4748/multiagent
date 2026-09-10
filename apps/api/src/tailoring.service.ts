@@ -26,7 +26,7 @@ export class TailoringService {
     private readonly resumes: ResumeIngestionService,
     private readonly agents: TailoringAgentsService,
     private readonly modelConfig: ModelConfigService,
-  ) {}
+  ) { }
 
   async createRun(
     resumeId: string,
@@ -68,6 +68,31 @@ export class TailoringService {
           'The tailoring workflow returned unsupported draft evidence.',
         );
       }
+      const gaps = evidenceMatrix.rows
+        .filter((row) => row.strength === 'none')
+        .map((row) => row.requirement);
+      const [atsReview, readabilityReview] = await Promise.all([
+        this.agents.reviewAts(tailoredDraft, jobProfile, profile),
+        this.agents.reviewReadability(tailoredDraft, jobProfile),
+      ]);
+      this.validateReviewFindings(tailoredDraft, atsReview, readabilityReview);
+      const finalResume = await this.agents.editFinalResume(
+        profile,
+        tailoredDraft,
+        jobProfile,
+        evidenceMatrix,
+        atsReview,
+        readabilityReview,
+        gaps,
+      );
+      this.validateFinalResume(
+        profile,
+        resumeId,
+        finalResume,
+        atsReview,
+        readabilityReview,
+        gaps,
+      );
       const result: TailoringRunResult = {
         runId,
         resumeId,
@@ -77,9 +102,13 @@ export class TailoringService {
         jobProfile,
         evidenceMatrix,
         tailoredDraft,
-        gaps: evidenceMatrix.rows
-          .filter((row) => row.strength === 'none')
-          .map((row) => row.requirement),
+        atsReview,
+        readabilityReview,
+        finalResume,
+        reviewStatus: 'completed',
+        reviewCompletedAt: new Date().toISOString(),
+        approvalStatus: 'pending',
+        gaps,
         additionalInstructions:
           request.additionalInstructions?.trim() || undefined,
         modelProfileId: profileConfig.id,
@@ -95,6 +124,9 @@ export class TailoringService {
         createdAt,
         completedAt: new Date().toISOString(),
         gaps: [],
+        reviewStatus: 'failed',
+        reviewError: error instanceof Error ? error.message : 'Review failed.',
+        approvalStatus: 'pending',
         additionalInstructions:
           request.additionalInstructions?.trim() || undefined,
         modelProfileId: profileConfig.id,
@@ -114,6 +146,29 @@ export class TailoringService {
     } catch {
       throw new NotFoundException(`Tailoring run '${runId}' was not found.`);
     }
+  }
+
+  async approveRun(
+    runId: string,
+    approvalNote?: string,
+  ): Promise<TailoringRunResult> {
+    const run = await this.getRun(runId);
+    if (run.status !== 'completed' || run.reviewStatus !== 'completed' || !run.finalResume) {
+      throw new BadRequestException(
+        'Only a completed, reviewed tailoring run can be approved.',
+      );
+    }
+    if (run.approvalStatus === 'approved') {
+      return run;
+    }
+    const approved: TailoringRunResult = {
+      ...run,
+      approvalStatus: 'approved',
+      approvedAt: new Date().toISOString(),
+      approvalNote: approvalNote?.trim() || undefined,
+    };
+    await this.persist(approved);
+    return approved;
   }
 
   private validateMatrix(
@@ -154,6 +209,52 @@ export class TailoringService {
     ) {
       throw new BadRequestException(
         'Unmatched requirements must be recorded as gaps, not claims.',
+      );
+    }
+  }
+
+  private validateReviewFindings(
+    draft: import('@resume-tweak/contracts').TailoredResumeDraft,
+    ...reports: import('@resume-tweak/contracts').ReviewReport[]
+  ) {
+    const draftClaimIds = new Set(draft.claims.map((claim) => claim.id));
+    const findingIds = new Set<string>();
+    if (
+      reports.some((report) =>
+        report.findings.some(
+          (finding) =>
+            findingIds.has(finding.id) ||
+            finding.affectedClaimIds.some((id) => !draftClaimIds.has(id)) ||
+            !findingIds.add(finding.id),
+        ),
+      )
+    ) {
+      throw new BadRequestException(
+        'A review report contains invalid finding or draft claim references.',
+      );
+    }
+  }
+
+  private validateFinalResume(
+    profile: Awaited<ReturnType<ResumeIngestionService['getProfile']>>,
+    resumeId: string,
+    finalResume: import('@resume-tweak/contracts').FinalResumePackage,
+    atsReview: import('@resume-tweak/contracts').ReviewReport,
+    readabilityReview: import('@resume-tweak/contracts').ReviewReport,
+    gaps: readonly string[],
+  ) {
+    const findingIds = new Set(
+      [...atsReview.findings, ...readabilityReview.findings].map((finding) => finding.id),
+    );
+    if (
+      finalResume.resumeId !== resumeId ||
+      hasInvalidEvidenceReferences(profile, finalResume.claims) ||
+      finalResume.decisions.length !== findingIds.size ||
+      finalResume.decisions.some((decision) => !findingIds.has(decision.findingId)) ||
+      gaps.some((gap) => !finalResume.unresolvedGaps.includes(gap))
+    ) {
+      throw new BadRequestException(
+        'The final editor returned invalid evidence, review decisions, or gap handling.',
       );
     }
   }

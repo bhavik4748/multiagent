@@ -5,17 +5,18 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { CreateTailoringRunDto } from './tailoring.dto';
+import { ApproveTailoringRunDto, CreateTailoringRunDto } from './tailoring.dto';
 import { TailoringService } from './tailoring.service';
 
 @ApiTags('tailoring')
 @Controller('api')
 export class TailoringController {
-  constructor(private readonly tailoring: TailoringService) {}
+  constructor(private readonly tailoring: TailoringService) { }
 
   @Post('resumes/:resumeId/tailoring-runs')
   @ApiOperation({
-    summary: 'Create an evidence-grounded Phase 2 tailoring run.',
+    summary:
+      'Create an evidence-grounded tailoring run with Phase 3 quality review.',
   })
   @ApiCreatedResponse({
     description: 'The completed or failed locally persisted run.',
@@ -52,5 +53,20 @@ export class TailoringController {
   })
   get(@Param('runId') runId: string) {
     return this.tailoring.getRun(runId);
+  }
+
+  @Post('tailoring-runs/:runId/approve')
+  @ApiOperation({
+    summary:
+      'Explicitly approve reviewed final resume content. This does not generate files.',
+  })
+  @ApiCreatedResponse({
+    description: 'The approved locally persisted tailoring run.',
+  })
+  approve(
+    @Param('runId') runId: string,
+    @Body() request: ApproveTailoringRunDto,
+  ) {
+    return this.tailoring.approveRun(runId, request.approvalNote);
   }
 }

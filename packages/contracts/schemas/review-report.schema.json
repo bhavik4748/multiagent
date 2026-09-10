@@ -5,20 +5,40 @@
     "type": "object",
     "additionalProperties": false,
     "required": [
+        "reviewer",
         "findings"
     ],
     "properties": {
+        "reviewer": {
+            "enum": [
+                "ats",
+                "readability"
+            ]
+        },
         "findings": {
             "type": "array",
             "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
+                    "id",
+                    "reviewer",
                     "severity",
                     "message",
-                    "recommendation"
+                    "recommendation",
+                    "affectedClaimIds"
                 ],
                 "properties": {
+                    "id": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "reviewer": {
+                        "enum": [
+                            "ats",
+                            "readability"
+                        ]
+                    },
                     "severity": {
                         "enum": [
                             "high",
@@ -34,10 +54,11 @@
                         "type": "string",
                         "minLength": 1
                     },
-                    "evidence": {
+                    "affectedClaimIds": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 1
                         }
                     }
                 }

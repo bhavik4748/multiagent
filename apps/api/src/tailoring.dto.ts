@@ -41,3 +41,15 @@ export class TailoringRunResponseDto {
   })
   gaps!: string[];
 }
+
+export class ApproveTailoringRunDto {
+  @ApiPropertyOptional({
+    description:
+      'Optional reviewer note retained with the explicit final-content approval.',
+    maxLength: 1_000,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1_000)
+  approvalNote?: string;
+}
