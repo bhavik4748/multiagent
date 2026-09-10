@@ -11,7 +11,7 @@ import { TailoringService } from './tailoring.service';
 @ApiTags('tailoring')
 @Controller('api')
 export class TailoringController {
-  constructor(private readonly tailoring: TailoringService) { }
+  constructor(private readonly tailoring: TailoringService) {}
 
   @Post('resumes/:resumeId/tailoring-runs')
   @ApiOperation({

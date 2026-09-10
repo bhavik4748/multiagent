@@ -26,7 +26,7 @@ export class TailoringService {
     private readonly resumes: ResumeIngestionService,
     private readonly agents: TailoringAgentsService,
     private readonly modelConfig: ModelConfigService,
-  ) { }
+  ) {}
 
   async createRun(
     resumeId: string,
@@ -153,7 +153,11 @@ export class TailoringService {
     approvalNote?: string,
   ): Promise<TailoringRunResult> {
     const run = await this.getRun(runId);
-    if (run.status !== 'completed' || run.reviewStatus !== 'completed' || !run.finalResume) {
+    if (
+      run.status !== 'completed' ||
+      run.reviewStatus !== 'completed' ||
+      !run.finalResume
+    ) {
       throw new BadRequestException(
         'Only a completed, reviewed tailoring run can be approved.',
       );
@@ -244,13 +248,17 @@ export class TailoringService {
     gaps: readonly string[],
   ) {
     const findingIds = new Set(
-      [...atsReview.findings, ...readabilityReview.findings].map((finding) => finding.id),
+      [...atsReview.findings, ...readabilityReview.findings].map(
+        (finding) => finding.id,
+      ),
     );
     if (
       finalResume.resumeId !== resumeId ||
       hasInvalidEvidenceReferences(profile, finalResume.claims) ||
       finalResume.decisions.length !== findingIds.size ||
-      finalResume.decisions.some((decision) => !findingIds.has(decision.findingId)) ||
+      finalResume.decisions.some(
+        (decision) => !findingIds.has(decision.findingId),
+      ) ||
       gaps.some((gap) => !finalResume.unresolvedGaps.includes(gap))
     ) {
       throw new BadRequestException(

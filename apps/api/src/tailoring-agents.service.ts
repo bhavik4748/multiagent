@@ -132,7 +132,14 @@ const tailoredDraftSchema = {
 const reviewFindingSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['id', 'reviewer', 'severity', 'message', 'recommendation', 'affectedClaimIds'],
+  required: [
+    'id',
+    'reviewer',
+    'severity',
+    'message',
+    'recommendation',
+    'affectedClaimIds',
+  ],
   properties: {
     id: { type: 'string' },
     reviewer: { type: 'string', enum: ['ats', 'readability'] },
@@ -156,7 +163,15 @@ const reviewReportSchema = {
 const finalResumeSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['resumeId', 'summary', 'markdown', 'claims', 'unresolvedGaps', 'decisions', 'changeLog'],
+  required: [
+    'resumeId',
+    'summary',
+    'markdown',
+    'claims',
+    'unresolvedGaps',
+    'decisions',
+    'changeLog',
+  ],
   properties: {
     resumeId: { type: 'string' },
     summary: { type: 'string' },
@@ -171,7 +186,10 @@ const finalResumeSchema = {
         required: ['findingId', 'decision', 'rationale', 'affectedClaimIds'],
         properties: {
           findingId: { type: 'string' },
-          decision: { type: 'string', enum: ['accepted', 'rejected', 'unresolved'] },
+          decision: {
+            type: 'string',
+            enum: ['accepted', 'rejected', 'unresolved'],
+          },
           rationale: { type: 'string' },
           affectedClaimIds: { type: 'array', items: { type: 'string' } },
         },
@@ -183,7 +201,7 @@ const finalResumeSchema = {
 
 @Injectable()
 export class TailoringAgentsService {
-  constructor(private readonly foundry: FoundryClientService) { }
+  constructor(private readonly foundry: FoundryClientService) {}
 
   async analyzeJob(jobDescription: string): Promise<JobProfile> {
     return this.foundry.createStructuredResponse<JobProfile>({
@@ -271,7 +289,15 @@ export class TailoringAgentsService {
       name: 'final_resume_editor',
       instructions:
         'Produce the final structured resume from the draft and valid reviewer recommendations. Preserve or improve factual accuracy: every claim must cite exact canonical evidence references, and no unsupported facts may be added. Record one accepted, rejected, or unresolved decision for every supplied finding with a rationale. Keep unmatched requirements in unresolvedGaps outside the resume. Return JSON only.',
-      input: { profile, draft, jobProfile, evidenceMatrix, atsReview, readabilityReview, gaps },
+      input: {
+        profile,
+        draft,
+        jobProfile,
+        evidenceMatrix,
+        atsReview,
+        readabilityReview,
+        gaps,
+      },
       validate: isFinalResumePackage,
       schema: finalResumeSchema,
     });
