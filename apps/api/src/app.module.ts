@@ -10,6 +10,8 @@ import { ResumeIngestionService } from './resume-ingestion.service';
 import { TailoringController } from './tailoring.controller';
 import { TailoringService } from './tailoring.service';
 import { TailoringAgentsService } from './tailoring-agents.service';
+import { DocumentService } from './document.service';
+import { VersionService } from './version.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
@@ -25,6 +27,8 @@ import { TailoringAgentsService } from './tailoring-agents.service';
     FoundryClientService,
     ResumeIngestionService,
     TailoringAgentsService,
+    DocumentService,
+    VersionService,
     TailoringService,
   ],
 })

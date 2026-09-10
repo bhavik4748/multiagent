@@ -21,6 +21,12 @@ type TailoringRun = {
     reviewError?: string;
     approvalStatus: 'pending' | 'approved';
     approvedAt?: string;
+    version?: ResumeVersion;
+};
+
+type ResumeVersion = {
+    versionId: string; versionType: 'general' | 'targeted' | 'job-specific'; track?: string; targetRole: string; createdAt: string;
+    artifacts: { docxPath: string; pdfPath: string }; unresolvedGaps: string[];
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -42,6 +48,8 @@ export default function HomePage() {
     const [approving, setApproving] = useState(false);
     const [tailoring, setTailoring] = useState(false);
     const [approvingFinal, setApprovingFinal] = useState(false);
+    const [generating, setGenerating] = useState(false);
+    const [versions, setVersions] = useState<ResumeVersion[]>([]);
 
     async function upload(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -96,8 +104,34 @@ export default function HomePage() {
         finally { setApprovingFinal(false); }
     }
 
+    async function generateVersion() {
+        if (!run || run.version) return;
+        setGenerating(true); setError('');
+        try {
+            const result = await parseResponse(await fetch(`${apiUrl}/api/tailoring-runs/${run.runId}/versions`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ versionType: 'job-specific' }),
+            }));
+            setRun(result); setVersions((current) => result.version ? [result.version, ...current.filter((version) => version.versionId !== result.version.versionId)] : current);
+        } catch (reason) { setError(reason instanceof Error ? reason.message : 'Document generation failed.'); }
+        finally { setGenerating(false); }
+    }
+
+    async function loadVersions() {
+        setError('');
+        try { setVersions(await parseResponse(await fetch(`${apiUrl}/api/resume-versions`))); }
+        catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not load saved versions.'); }
+    }
+
+    async function selectVersion(versionId: string) {
+        setError(''); setRun(null);
+        try {
+            const result = await parseResponse(await fetch(`${apiUrl}/api/resume-versions/${versionId}/source-profile`));
+            setProfile(result); setClaims(result.claims);
+        } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not select the saved version.'); }
+    }
+
     return <main>
-        <p className="eyebrow">Phase 3 / Evidence-grounded quality review</p>
+        <p className="eyebrow">Phase 4 / Evidence-grounded document export</p>
         <h1>Tailor the story, not the facts.</h1>
         <p className="intro">Review the factual record, then compare it with a job description. Missing requirements are shown as gaps and are never added to the draft.</p>
         <form className="upload-form" onSubmit={upload}>
@@ -140,9 +174,10 @@ export default function HomePage() {
                     <h3>Recommendation decisions</h3><div className="decision-list">{run.finalResume.decisions.map((decision) => <article key={decision.findingId}><strong>{decision.decision}</strong><span>{decision.rationale}</span></article>)}</div>
                     <h3>Change log</h3><ul className="change-log">{run.finalResume.changeLog.map((change) => <li key={change}>{change}</li>)}</ul>
                     {run.finalResume.unresolvedGaps.length > 0 && <aside className="gaps"><h3>Unresolved gaps remain outside the resume</h3><ul>{run.finalResume.unresolvedGaps.map((gap) => <li key={gap}>{gap}</li>)}</ul></aside>}
-                    {run.approvalStatus === 'approved' ? <p className="approval-confirmation">Final content approved {run.approvedAt ? `on ${new Date(run.approvedAt).toLocaleString()}` : ''}. DOCX and PDF generation arrives in Phase 4.</p> : <><button className="approve-button" type="button" onClick={approveFinalContent} disabled={approvingFinal}>{approvingFinal ? 'Saving final approval…' : 'Approve final content'}</button><p className="review-help">Approval confirms the reviewed content only. No files are generated or saved as versions until Phase 4.</p></>}
+                    {run.approvalStatus === 'approved' ? <>{run.version ? <section className="export-panel"><h3>Downloads ready</h3><p className="approval-confirmation">Approved content was saved as a {run.version.versionType} version.</p><div className="download-links"><a href={`${apiUrl}/api/resume-versions/${run.version.versionId}/download/docx`}>Download DOCX</a><a href={`${apiUrl}/api/resume-versions/${run.version.versionId}/download/pdf`}>Download PDF</a></div></section> : <section className="export-panel"><p className="approval-confirmation">Final content approved {run.approvedAt ? `on ${new Date(run.approvedAt).toLocaleString()}` : ''}.</p><button className="approve-button" type="button" onClick={generateVersion} disabled={generating}>{generating ? 'Generating DOCX and PDF…' : 'Generate DOCX and PDF'}</button><p className="review-help">Exports use an ATS-safe single-column DOCX, then verify the matching PDF text.</p></section>}</> : <><button className="approve-button" type="button" onClick={approveFinalContent} disabled={approvingFinal}>{approvingFinal ? 'Saving final approval…' : 'Approve final content'}</button><p className="review-help">Approval is required before DOCX/PDF files are generated or saved as versions.</p></>}
                 </>}
             </>}
         </section>}
+        <section className="versions" aria-label="Saved resume versions"><div className="review-heading"><div><p className="eyebrow">Reusable versions</p><h2>General, targeted, and job-specific exports</h2></div><button type="button" onClick={loadVersions}>Refresh versions</button></div>{versions.length > 0 && <ol className="version-list">{versions.map((version) => <li key={version.versionId}><div><strong>{version.targetRole}</strong><small>{version.versionType}{version.track ? ` · ${version.track}` : ''} · {new Date(version.createdAt).toLocaleDateString()}</small></div><div className="download-links"><button type="button" onClick={() => selectVersion(version.versionId)}>Use as source</button><a href={`${apiUrl}/api/resume-versions/${version.versionId}/download/docx`}>DOCX</a><a href={`${apiUrl}/api/resume-versions/${version.versionId}/download/pdf`}>PDF</a></div></li>)}</ol>}{versions.length === 0 && <p className="review-help">Generate an approved export, then refresh this list to reuse it in later tailoring work.</p>}</section>
     </main>;
 }

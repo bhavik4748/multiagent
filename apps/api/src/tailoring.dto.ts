@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateTailoringRunDto {
   @ApiProperty({
@@ -52,4 +58,28 @@ export class ApproveTailoringRunDto {
   @IsString()
   @MaxLength(1_000)
   approvalNote?: string;
+}
+
+export class CreateResumeVersionDto {
+  @ApiProperty({ enum: ['general', 'targeted', 'job-specific'] })
+  @IsIn(['general', 'targeted', 'job-specific'])
+  versionType!: 'general' | 'targeted' | 'job-specific';
+
+  @ApiPropertyOptional({
+    description: 'Optional named role track for targeted versions.',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  track?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional company name for job-specific versions.',
+    maxLength: 160,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  company?: string;
 }

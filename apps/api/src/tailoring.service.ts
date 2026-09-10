@@ -14,6 +14,7 @@ import {
 import { ModelConfigService } from './model-config.service';
 import { ResumeIngestionService } from './resume-ingestion.service';
 import { TailoringAgentsService } from './tailoring-agents.service';
+import { VersionService } from './version.service';
 
 @Injectable()
 export class TailoringService {
@@ -26,7 +27,8 @@ export class TailoringService {
     private readonly resumes: ResumeIngestionService,
     private readonly agents: TailoringAgentsService,
     private readonly modelConfig: ModelConfigService,
-  ) {}
+    private readonly versions: VersionService,
+  ) { }
 
   async createRun(
     resumeId: string,
@@ -76,11 +78,17 @@ export class TailoringService {
         this.agents.reviewReadability(tailoredDraft, jobProfile),
       ]);
       this.validateReviewFindings(tailoredDraft, atsReview, readabilityReview);
-      const finalResume = await this.agents.editFinalResume(
+      const editorResult = await this.agents.editFinalResume(
         profile,
         tailoredDraft,
         jobProfile,
         evidenceMatrix,
+        atsReview,
+        readabilityReview,
+        gaps,
+      );
+      const finalResume = this.normalizeFinalResume(
+        editorResult,
         atsReview,
         readabilityReview,
         gaps,
@@ -175,6 +183,27 @@ export class TailoringService {
     return approved;
   }
 
+  async createVersion(
+    runId: string,
+    options: {
+      versionType: 'general' | 'targeted' | 'job-specific';
+      track?: string;
+      company?: string;
+    },
+  ): Promise<TailoringRunResult> {
+    const run = await this.getRun(runId);
+    if (run.approvalStatus !== 'approved' || !run.finalResume) {
+      throw new BadRequestException(
+        'Approve reviewed final content before generating downloadable files.',
+      );
+    }
+    if (run.version) return run;
+    const version = await this.versions.createApprovedVersion(run, options);
+    const updated = { ...run, version };
+    await this.persist(updated);
+    return updated;
+  }
+
   private validateMatrix(
     profile: Awaited<ReturnType<ResumeIngestionService['getProfile']>>,
     requirementIds: string[],
@@ -247,24 +276,79 @@ export class TailoringService {
     readabilityReview: import('@resume-tweak/contracts').ReviewReport,
     gaps: readonly string[],
   ) {
-    const findingIds = new Set(
-      [...atsReview.findings, ...readabilityReview.findings].map(
-        (finding) => finding.id,
-      ),
-    );
-    if (
-      finalResume.resumeId !== resumeId ||
-      hasInvalidEvidenceReferences(profile, finalResume.claims) ||
-      finalResume.decisions.length !== findingIds.size ||
-      finalResume.decisions.some(
-        (decision) => !findingIds.has(decision.findingId),
-      ) ||
-      gaps.some((gap) => !finalResume.unresolvedGaps.includes(gap))
-    ) {
+    const findings = [...atsReview.findings, ...readabilityReview.findings];
+    const findingIds = new Set(findings.map((finding) => finding.id));
+    if (finalResume.resumeId !== resumeId) {
       throw new BadRequestException(
-        'The final editor returned invalid evidence, review decisions, or gap handling.',
+        'The final editor returned a resume for a different source profile.',
       );
     }
+    if (hasInvalidEvidenceReferences(profile, finalResume.claims)) {
+      throw new BadRequestException(
+        'The final editor returned a claim with invalid canonical evidence references.',
+      );
+    }
+    if (
+      finalResume.decisions.length !== findingIds.size ||
+      new Set(finalResume.decisions.map((decision) => decision.findingId))
+        .size !== findingIds.size ||
+      finalResume.decisions.some(
+        (decision) =>
+          !findingIds.has(decision.findingId) ||
+          !findings
+            .find((finding) => finding.id === decision.findingId)
+            ?.affectedClaimIds.every((id) =>
+              decision.affectedClaimIds.includes(id),
+            ),
+      )
+    ) {
+      throw new BadRequestException(
+        'The final editor did not preserve a valid decision for every review finding.',
+      );
+    }
+    if (gaps.some((gap) => !finalResume.unresolvedGaps.includes(gap))) {
+      throw new BadRequestException(
+        'The final editor did not preserve all unmatched requirements as unresolved gaps.',
+      );
+    }
+  }
+
+  private normalizeFinalResume(
+    finalResume: import('@resume-tweak/contracts').FinalResumePackage,
+    atsReview: import('@resume-tweak/contracts').ReviewReport,
+    readabilityReview: import('@resume-tweak/contracts').ReviewReport,
+    gaps: readonly string[],
+  ): import('@resume-tweak/contracts').FinalResumePackage {
+    const findings = [...atsReview.findings, ...readabilityReview.findings];
+    const validFindingIds = new Set(findings.map((finding) => finding.id));
+    const decisionsByFinding = new Map(
+      finalResume.decisions
+        .filter((decision) => validFindingIds.has(decision.findingId))
+        .filter(
+          (decision, index, decisions) =>
+            decisions.findIndex(
+              (candidate) => candidate.findingId === decision.findingId,
+            ) === index,
+        )
+        .map((decision) => [decision.findingId, decision]),
+    );
+
+    return {
+      ...finalResume,
+      decisions: findings.map((finding) => {
+        const decision = decisionsByFinding.get(finding.id);
+        return decision
+          ? { ...decision, affectedClaimIds: finding.affectedClaimIds }
+          : {
+            findingId: finding.id,
+            decision: 'unresolved',
+            rationale:
+              'The final editor did not return a decision; this finding remains for user review.',
+            affectedClaimIds: finding.affectedClaimIds,
+          };
+      }),
+      unresolvedGaps: [...new Set([...finalResume.unresolvedGaps, ...gaps])],
+    };
   }
 
   private async persist(result: TailoringRunResult) {

@@ -423,3 +423,52 @@ h1 {
     background: #edf5ef;
     font-family: 'Segoe UI', sans-serif;
 }
+
+.export-panel,
+.versions {
+    margin-top: 2rem;
+    padding: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    background: var(--panel);
+}
+
+.download-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.8rem;
+}
+
+.download-links a,
+.download-links button {
+    display: inline-block;
+    padding: 0.55rem 0.8rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: var(--ink);
+    color: white;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.version-list {
+    padding: 0;
+    list-style: none;
+}
+
+.version-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--line);
+}
+
+.version-list small {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--muted);
+}

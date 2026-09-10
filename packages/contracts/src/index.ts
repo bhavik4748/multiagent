@@ -81,6 +81,35 @@ export interface FinalResumePackage {
     changeLog: readonly string[];
 }
 
+export type ResumeVersionType = 'general' | 'targeted' | 'job-specific';
+
+export interface ResumeVersionArtifacts {
+    docxPath: string;
+    pdfPath: string;
+    contentPath: string;
+    metadataPath: string;
+    changeLogPath: string;
+    reviewReportPath: string;
+}
+
+export interface ResumeVersionMetadata {
+    versionId: string;
+    versionType: ResumeVersionType;
+    track?: string;
+    sourceResumeId: string;
+    tailoringRunId: string;
+    targetRole: string;
+    company?: string;
+    createdAt: string;
+    jobDescriptionHash: string;
+    modelProfileId: string;
+    deployment: string;
+    includedKeywords: readonly string[];
+    unresolvedGaps: readonly string[];
+    artifacts: ResumeVersionArtifacts;
+    approvedAt: string;
+}
+
 export type EvidenceStrength = 'strong' | 'partial' | 'none';
 export type EvidenceAction = 'emphasize' | 'reframe' | 'flag-gap';
 
@@ -148,6 +177,7 @@ export interface TailoringRunResult {
     approvalStatus: 'pending' | 'approved';
     approvedAt?: string;
     approvalNote?: string;
+    version?: ResumeVersionMetadata;
     gaps: readonly string[];
     additionalInstructions?: string;
     modelProfileId: string;

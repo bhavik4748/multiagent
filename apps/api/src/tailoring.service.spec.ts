@@ -22,6 +22,7 @@ describe('TailoringService evidence guardrails', () => {
     { getProfile: jest.fn() } as never,
     {} as never,
     {} as never,
+    {} as never,
   );
 
   it('permits an unmatched requirement only when it is flagged as a gap without evidence', () => {
@@ -98,5 +99,59 @@ describe('TailoringService evidence guardrails', () => {
         ],
       }),
     ).toThrow(BadRequestException);
+  });
+
+  it('adds an unresolved decision for a reviewer finding omitted by the final editor', () => {
+    const normalized = (
+      service as never as {
+        normalizeFinalResume: (
+          result: unknown,
+          ats: unknown,
+          readability: unknown,
+          gaps: readonly string[],
+        ) => {
+          decisions: { findingId: string; decision: string }[];
+          unresolvedGaps: string[];
+        };
+      }
+    ).normalizeFinalResume(
+      {
+        resumeId: 'resume-001',
+        markdown: 'Draft',
+        claims: [
+          {
+            id: 'draft-001',
+            text: 'Built TypeScript APIs.',
+            section: 'experience',
+            evidence: [
+              { sourceFactId: 'fact-0001', sourceSegmentId: 'segment-0001' },
+            ],
+          },
+        ],
+        unresolvedGaps: [],
+        decisions: [],
+        changeLog: [],
+      },
+      {
+        reviewer: 'ats',
+        findings: [
+          {
+            id: 'ats-001',
+            reviewer: 'ats',
+            severity: 'low',
+            message: 'Shorten bullet.',
+            recommendation: 'Edit it.',
+            affectedClaimIds: ['draft-001'],
+          },
+        ],
+      },
+      { reviewer: 'readability', findings: [] },
+      ['Kubernetes'],
+    );
+
+    expect(normalized.decisions).toEqual([
+      expect.objectContaining({ findingId: 'ats-001', decision: 'unresolved' }),
+    ]);
+    expect(normalized.unresolvedGaps).toContain('Kubernetes');
   });
 });

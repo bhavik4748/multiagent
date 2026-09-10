@@ -1,17 +1,36 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { ApproveTailoringRunDto, CreateTailoringRunDto } from './tailoring.dto';
+import {
+  ApproveTailoringRunDto,
+  CreateResumeVersionDto,
+  CreateTailoringRunDto,
+} from './tailoring.dto';
 import { TailoringService } from './tailoring.service';
+import { VersionService } from './version.service';
+import { ResumeIngestionService } from './resume-ingestion.service';
 
 @ApiTags('tailoring')
 @Controller('api')
 export class TailoringController {
-  constructor(private readonly tailoring: TailoringService) {}
+  constructor(
+    private readonly tailoring: TailoringService,
+    private readonly versions: VersionService,
+    private readonly resumes: ResumeIngestionService,
+  ) {}
 
   @Post('resumes/:resumeId/tailoring-runs')
   @ApiOperation({
@@ -68,5 +87,48 @@ export class TailoringController {
     @Body() request: ApproveTailoringRunDto,
   ) {
     return this.tailoring.approveRun(runId, request.approvalNote);
+  }
+
+  @Post('tailoring-runs/:runId/versions')
+  @ApiOperation({
+    summary:
+      'Generate ATS-safe DOCX/PDF artifacts and save an approved resume version.',
+  })
+  createVersion(
+    @Param('runId') runId: string,
+    @Body() request: CreateResumeVersionDto,
+  ) {
+    return this.tailoring.createVersion(runId, request);
+  }
+
+  @Get('resume-versions')
+  @ApiOperation({
+    summary: 'List locally saved general, targeted, and job-specific versions.',
+  })
+  listVersions() {
+    return this.versions.listVersions();
+  }
+
+  @Get('resume-versions/:versionId/source-profile')
+  @ApiOperation({
+    summary:
+      'Return the approved factual profile associated with a saved version.',
+  })
+  async sourceProfile(@Param('versionId') versionId: string) {
+    const resumeId = await this.versions.getSourceResumeId(versionId);
+    return this.resumes.getProfile(resumeId);
+  }
+
+  @Get('resume-versions/:versionId/download/:format')
+  @ApiOperation({
+    summary: 'Download a generated ATS-safe DOCX or matching PDF.',
+  })
+  async download(
+    @Param('versionId') versionId: string,
+    @Param('format') format: 'docx' | 'pdf',
+    @Res() response: Response,
+  ) {
+    const artifact = await this.versions.getArtifact(versionId, format);
+    return response.download(artifact.path, artifact.filename);
   }
 }
