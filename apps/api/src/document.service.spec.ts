@@ -59,7 +59,7 @@ describe('DocumentService artifact verification', () => {
 
   it('validates only content rendered in the PDF', async () => {
     const getText = jest.fn().mockResolvedValue({
-      text: 'Approved summary. Candidate Name Built approved APIs.',
+      text: 'An earlier summary draft. Candidate Name Built approved APIs.',
     });
     const destroy = jest.fn().mockResolvedValue(undefined);
     jest
@@ -193,5 +193,169 @@ describe('DocumentService artifact verification', () => {
     });
 
     expect(markdown.match(/TypeScript/g)).toHaveLength(1);
+  });
+
+  it('rebuilds legacy unheaded experience into separate employer groups', () => {
+    const markdown = service.renderMarkdown({
+      ...resume,
+      claims: [
+        {
+          id: 'role-one',
+          text: 'Platform Engineer | Northwind | 2022 - Present',
+          section: 'experience',
+          evidence: [],
+        },
+        {
+          id: 'achievement-one',
+          text: 'Built Northwind APIs.',
+          section: 'experience',
+          evidence: [],
+        },
+        {
+          id: 'role-two',
+          text: 'Software Engineer | Contoso | 2020 - 2022',
+          section: 'experience',
+          evidence: [],
+        },
+        {
+          id: 'achievement-two',
+          text: 'Built Contoso services.',
+          section: 'experience',
+          evidence: [],
+        },
+      ],
+      renderModel: {
+        schemaVersion: '1',
+        identity: { contactLines: [] },
+        summary: [],
+        skills: [],
+        experience: [
+          {
+            id: 'legacy-experience',
+            achievements: [
+              { id: 'role-one', text: 'Platform Engineer | Northwind | 2022 - Present', evidence: [] },
+              { id: 'achievement-one', text: 'Built Northwind APIs.', evidence: [] },
+              { id: 'role-two', text: 'Software Engineer | Contoso | 2020 - 2022', evidence: [] },
+              { id: 'achievement-two', text: 'Built Contoso services.', evidence: [] },
+            ],
+          },
+        ],
+        education: [],
+        certifications: [],
+        additionalInformation: [],
+      },
+    });
+
+    expect(markdown).toContain('### Platform Engineer | Northwind | 2022 - Present');
+    expect(markdown).toContain('### Software Engineer | Contoso | 2020 - 2022');
+    expect(markdown).toContain('- Built Northwind APIs.');
+    expect(markdown).toContain('- Built Contoso services.');
+  });
+
+  it('renders the ATS-safe template hierarchy for identity, skills, and roles', () => {
+    const createDocument = (
+      service as unknown as {
+        createDocument: (resume: unknown) => unknown;
+      }
+    ).createDocument.bind(service);
+    expect(() =>
+      createDocument({
+      ...resume,
+      renderModel: {
+        schemaVersion: '1',
+        identity: {
+          name: { id: 'name', text: 'Jordan Lee', evidence: [] },
+          headline: { id: 'headline', text: 'Platform Engineer', evidence: [] },
+          contactLines: [
+            { id: 'contact', text: 'jordan@example.test', evidence: [] },
+          ],
+        },
+        summary: [],
+        skills: [
+          { id: 'skill', text: 'Cloud: Azure, Kubernetes', evidence: [] },
+        ],
+        experience: [
+          {
+            id: 'experience-1',
+            heading: {
+              id: 'role',
+              text: 'Platform Engineer | Northwind | 2022 - Present',
+              evidence: [],
+            },
+            achievements: [
+              { id: 'achievement', text: 'Built reliable APIs.', evidence: [] },
+            ],
+          },
+        ],
+        education: [],
+        certifications: [],
+        additionalInformation: [],
+      },
+      }),
+    ).not.toThrow();
+    const markdown = service.renderMarkdown({
+      ...resume,
+      renderModel: {
+        schemaVersion: '1',
+        identity: {
+          name: { id: 'name', text: 'Jordan Lee', evidence: [] },
+          headline: { id: 'headline', text: 'Platform Engineer', evidence: [] },
+          contactLines: [
+            { id: 'contact', text: 'jordan@example.test', evidence: [] },
+          ],
+        },
+        summary: [],
+        skills: [
+          { id: 'skill', text: 'Cloud: Azure, Kubernetes', evidence: [] },
+        ],
+        experience: [
+          {
+            id: 'experience-1',
+            heading: {
+              id: 'role',
+              text: 'Platform Engineer | Northwind | 2022 - Present',
+              evidence: [],
+            },
+            achievements: [
+              { id: 'achievement', text: 'Built reliable APIs.', evidence: [] },
+            ],
+          },
+        ],
+        education: [],
+        certifications: [],
+        additionalInformation: [],
+      },
+    });
+    expect(markdown).toContain('# Jordan Lee');
+    expect(markdown).toContain('Cloud: Azure, Kubernetes');
+    expect(markdown).toContain('### Platform Engineer | Northwind | 2022 - Present');
+  });
+
+  it('prefers the evidence-backed summary claim over internal tailoring rationale', () => {
+    const markdown = service.renderMarkdown({
+      ...resume,
+      summary: 'Tailored for a target role by prioritizing evidence and excluding gaps.',
+      renderModel: {
+        schemaVersion: '1',
+        identity: { contactLines: [] },
+        summary: [
+          {
+            id: 'candidate-summary',
+            text: 'Senior engineer building reliable TypeScript and AI-enabled products.',
+            evidence: [],
+          },
+        ],
+        skills: [],
+        experience: [],
+        education: [],
+        certifications: [],
+        additionalInformation: [],
+      },
+    });
+
+    expect(markdown).toContain(
+      'Senior engineer building reliable TypeScript and AI-enabled products.',
+    );
+    expect(markdown).not.toContain('Tailored for a target role');
   });
 });

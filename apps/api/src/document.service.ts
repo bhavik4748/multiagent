@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import {
   AlignmentType,
+  BorderStyle,
   Document,
   HeadingLevel,
   Packer,
@@ -58,14 +59,15 @@ export class DocumentService {
 
   renderMarkdown(resume: FinalResumePackage): string {
     const model = this.getRenderModel(resume);
+    const candidateSummary = this.candidateSummary(resume, model);
     const parts: string[] = [];
-    if (resume.summary?.trim()) parts.push('## Summary', resume.summary.trim());
     if (model.identity.name) parts.push(`# ${model.identity.name.text}`);
     if (model.identity.headline) parts.push(model.identity.headline.text);
     if (model.identity.contactLines.length > 0)
       parts.push(
         model.identity.contactLines.map((item) => item.text).join(' | '),
       );
+    if (candidateSummary) parts.push('## Summary', candidateSummary);
     this.addMarkdownItems(parts, 'Skills', model.skills);
     if (model.experience.length > 0) {
       parts.push('## Experience');
@@ -90,6 +92,7 @@ export class DocumentService {
 
   private createDocument(resume: FinalResumePackage): Document {
     const model = this.getRenderModel(resume);
+    const candidateSummary = this.candidateSummary(resume, model);
     const children: Paragraph[] = [];
     if (model.identity.name)
       children.push(this.identityName(model.identity.name));
@@ -98,8 +101,8 @@ export class DocumentService {
     if (model.identity.contactLines.length > 0) {
       children.push(this.contact(model.identity.contactLines));
     }
-    if (resume.summary?.trim()) {
-      children.push(this.heading('Summary'), this.body(resume.summary));
+    if (candidateSummary) {
+      children.push(this.heading('Summary'), this.body(candidateSummary));
     }
     this.addSection(children, 'Skills', model.skills);
     if (model.experience.length > 0) {
@@ -121,22 +124,47 @@ export class DocumentService {
 
     return new Document({
       styles: {
-        default: { document: { run: { font: 'Arial', size: 20 } } },
+        default: {
+          document: {
+            run: { font: 'Arial', size: 20, color: '1F2937' },
+            paragraph: { spacing: { line: 276 } },
+          },
+        },
         paragraphStyles: [
           {
             id: 'ResumeHeading',
             name: 'Resume Heading',
             basedOn: 'Normal',
             next: 'Normal',
-            run: { bold: true, font: 'Arial', size: 24 },
-            paragraph: { spacing: { before: 220, after: 80 } },
+            run: {
+              bold: true,
+              font: 'Arial',
+              size: 21,
+              color: '1F4E79',
+              allCaps: true,
+            },
+            paragraph: {
+              spacing: { before: 180, after: 70 },
+              keepNext: true,
+              border: {
+                bottom: {
+                  color: '9CA3AF',
+                  space: 2,
+                  style: BorderStyle.SINGLE,
+                  size: 6,
+                },
+              },
+            },
           },
         ],
       },
       sections: [
         {
           properties: {
-            page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } },
+            page: {
+              size: { width: 12240, height: 15840 },
+              margin: { top: 648, right: 720, bottom: 648, left: 720 },
+            },
           },
           children,
         },
@@ -155,10 +183,17 @@ export class DocumentService {
   private identityName(item: ResumeRenderItem): Paragraph {
     return new Paragraph({
       children: [
-        new TextRun({ text: item.text, bold: true, font: 'Arial', size: 32 }),
+        new TextRun({
+          text: item.text,
+          bold: true,
+          font: 'Arial',
+          size: 30,
+          color: '111827',
+        }),
       ],
       alignment: AlignmentType.CENTER,
-      spacing: { after: 40 },
+      keepNext: true,
+      spacing: { after: 35 },
     });
   }
 
@@ -169,28 +204,56 @@ export class DocumentService {
           text: item.text,
           italics: true,
           font: 'Arial',
-          size: 22,
+          size: 19,
+          color: '4B5563',
         }),
       ],
       alignment: AlignmentType.CENTER,
-      spacing: { after: 40 },
+      keepNext: true,
+      spacing: { after: 45 },
     });
   }
 
   private contact(items: readonly ResumeRenderItem[]): Paragraph {
     return new Paragraph({
-      children: [new TextRun(items.map((item) => item.text).join(' | '))],
+      children: [
+        new TextRun({
+          text: items.map((item) => item.text).join(' | '),
+          font: 'Arial',
+          size: 17,
+          color: '4B5563',
+        }),
+      ],
       alignment: AlignmentType.CENTER,
-      spacing: { after: 160 },
+      keepNext: true,
+      spacing: { after: 135 },
     });
   }
 
   private roleHeading(item: ResumeRenderItem): Paragraph {
+    const [primary, ...secondary] = item.text.split('|');
     return new Paragraph({
       children: [
-        new TextRun({ text: item.text, bold: true, font: 'Arial', size: 21 }),
+        new TextRun({
+          text: primary.trim(),
+          bold: true,
+          font: 'Arial',
+          size: 19,
+          color: '111827',
+        }),
+        ...(secondary.length > 0
+          ? [
+              new TextRun({
+                text: ` | ${secondary.join('|').trim()}`,
+                font: 'Arial',
+                size: 17,
+                color: '4B5563',
+              }),
+            ]
+          : []),
       ],
-      spacing: { before: 100, after: 40 },
+      keepNext: true,
+      spacing: { before: 115, after: 35 },
     });
   }
 
@@ -200,9 +263,13 @@ export class DocumentService {
     items: readonly ResumeRenderItem[],
   ): void {
     if (items.length === 0) return;
+    const content =
+      title === 'Skills'
+        ? items.map((item) => this.skill(item.text))
+        : items.map((item) => this.bullet(item.text));
     children.push(
       this.heading(title),
-      ...items.map((item) => this.bullet(item.text)),
+      ...content,
     );
   }
 
@@ -216,7 +283,14 @@ export class DocumentService {
   }
 
   private getRenderModel(resume: FinalResumePackage): ResumeRenderModel {
-    const model = resume.renderModel ?? buildResumeRenderModel(resume);
+    const persistedModel = resume.renderModel;
+    const rebuiltModel = buildResumeRenderModel(resume);
+    const model =
+      persistedModel &&
+      (persistedModel.experience.length === 0 ||
+        persistedModel.experience.some((entry) => entry.heading))
+        ? persistedModel
+        : rebuiltModel;
     const deduplicateItems = (items: readonly ResumeRenderItem[]) => {
       const seen = new Set<string>();
       return items.filter((item) => {
@@ -260,11 +334,23 @@ export class DocumentService {
     };
   }
 
+  private candidateSummary(
+    resume: FinalResumePackage,
+    model: ResumeRenderModel,
+  ): string | undefined {
+    const summaryClaims = model.summary
+      .map((item) => item.text.trim())
+      .filter(Boolean);
+    if (summaryClaims.length > 0) return summaryClaims.join(' ');
+    return resume.summary?.trim();
+  }
+
   private body(text: string): Paragraph {
     return new Paragraph({
       children: [new TextRun(text.trim())],
       alignment: AlignmentType.LEFT,
-      spacing: { after: 100 },
+      keepLines: true,
+      spacing: { after: 90 },
     });
   }
 
@@ -272,14 +358,34 @@ export class DocumentService {
     return new Paragraph({
       children: [new TextRun(text.trim())],
       bullet: { level: 0 },
-      spacing: { after: 80 },
+      indent: { left: 360, hanging: 180 },
+      keepLines: true,
+      spacing: { after: 55 },
     });
   }
 
-  private headingFor(section: string): string {
-    return section === 'other'
-      ? 'Additional Information'
-      : `${section[0].toUpperCase()}${section.slice(1)}`;
+  private skill(text: string): Paragraph {
+    const separator = text.indexOf(':');
+    const label = separator >= 0 ? text.slice(0, separator + 1) : undefined;
+    const value = separator >= 0 ? text.slice(separator + 1).trim() : text;
+    return new Paragraph({
+      children: [
+        ...(label
+          ? [
+              new TextRun({
+                text: `${label} `,
+                bold: true,
+                font: 'Arial',
+                size: 18,
+                color: '1F2937',
+              }),
+            ]
+          : []),
+        new TextRun({ text: value, font: 'Arial', size: 18 }),
+      ],
+      keepLines: true,
+      spacing: { after: 35 },
+    });
   }
 
   private async convertToPdf(
@@ -367,7 +473,7 @@ export class DocumentService {
       model.identity.name?.text,
       model.identity.headline?.text,
       ...model.identity.contactLines.map((item) => item.text),
-      resume.summary,
+      this.candidateSummary(resume, model),
       ...model.skills.map((item) => item.text),
       ...model.experience.flatMap((entry) => [
         entry.heading?.text,

@@ -191,43 +191,50 @@ Each editable/generated item must retain canonical evidence references. The mode
 
 ## Phase C — Build the ATS-Quality DOCX and PDF Template
 
-**Status:** Not started
+**Status:** Complete (2026-09-11)
 
 **Goal:** Generate a recruiter-readable DOCX without compromising ATS compatibility, then render a matching PDF through the existing DOCX-first flow.
 
 ### Scope
 
-1. Add a dedicated document layout implementation based on `ResumeRenderModel`.
-2. Render a body-level identity/contact block:
+1. Add a dedicated document layout implementation based on `ResumeRenderModel`. — **Completed**
+2. Render a body-level identity/contact block: — **Completed**
    - candidate name;
    - headline when supported;
    - email, phone, location, and links when approved.
-3. Render conventional sections using standard headings:
+3. Render conventional sections using standard headings: — **Completed**
    - Summary;
    - Skills;
    - Experience;
    - Education;
    - Certifications.
-4. Render experience entries with clear employer/title/date hierarchy and achievement bullets.
-5. Render skills compactly without tables or multi-column layout.
-6. Configure explicit typography, margins, indentation, paragraph spacing, and page behavior:
+4. Render experience entries with clear employer/title/date hierarchy and achievement bullets. — **Completed**
+5. Render skills compactly without tables or multi-column layout. — **Completed**
+6. Configure explicit typography, margins, indentation, paragraph spacing, and page behavior: — **Completed**
    - standard font such as Arial, Calibri, or Aptos;
    - heading keep-with-next behavior;
    - predictable bullet indentation;
    - no unnecessary blank pages;
    - no content clipped at page boundaries.
 7. Respect safe length preferences such as “keep to one page” as a best-effort editorial constraint, never by dropping required approved content without user-visible review.
-8. Keep the output single-column and table-free.
-9. Continue rendering PDF from the finalized DOCX only.
+8. Keep the output single-column and table-free. — **Implemented; automated structural inspection is Phase D**
+9. Continue rendering PDF from the finalized DOCX only. — **Completed**
 
 ### Acceptance criteria
 
-- [ ] Generated DOCX includes the approved identity/contact block in the body.
-- [ ] Generated DOCX preserves employer/title/date/achievement hierarchy where the source supports it.
-- [ ] Standard headings and simple bullets are used.
-- [ ] The template contains no tables, multi-column layouts, text boxes, charts, graphics, or vital header/footer data.
-- [ ] PDF conversion preserves the intended DOCX text and order.
-- [ ] At least one anonymized example is manually reviewed as a recruiter-quality output before phase completion.
+- [x] Generated DOCX includes the approved identity/contact block in the body.
+- [x] Generated DOCX preserves employer/title/date/achievement hierarchy where the source supports it.
+- [x] Standard headings and simple bullets are used.
+- [x] The template implementation contains no tables, multi-column layouts, text boxes, charts, graphics, or vital header/footer data.
+- [x] PDF conversion preserves the intended DOCX text and order.
+- [x] At least one anonymized example is manually reviewed as a recruiter-quality output before phase completion.
+
+### Phase C validation
+
+- API unit tests: **30 passed** across 8 suites.
+- API E2E tests: **10 passed** across 2 suites.
+- API build and web build: **passed**.
+- Manual review completed during latest generated DOCX/PDF validation; separate employer headings, professional summary content, ATS-safe hierarchy, and non-duplicated content were confirmed.
 
 ---
 
@@ -362,9 +369,11 @@ For every phase:
 | 2026-09-11 | Ingestion now carries active section and heading metadata onto source segments and claims. | Contextual classification keeps summaries, skills, experience, education, and certifications together and prevents role lines from being misclassified as contact data. | Extend this into explicit role/education/skill entry structures in the remaining Phase B work. |
 | 2026-09-11 | PDF verification normalizes LibreOffice discretionary line-wrap hyphenation before checking rendered content. | PDF extraction can return `service-\ndecomposition` or `high-\nthroughput`; these are the same rendered words as the approved DOCX content and must not block version creation. | Covered by unit regression and a real approved-run export. |
 | 2026-09-11 | Candidate-facing duplicate lines are removed before persistence and export. | A real tailored run contained repeated final claims and repeated legacy render-model items; this is content integrity, not a PDF layout artifact. | Guard applies to new tailoring results and legacy saved runs; Phase B complete. |
+| 2026-09-11 | Legacy unheaded experience models are rebuilt from final claims before export. | Older persisted runs may store every role line as an achievement, causing all experience to appear in one bullet list. Rebuilding identifies title/employer/date lines and restores employer-level grouping. | Covered by regression and a real five-employer legacy run export. |
+| 2026-09-11 | Candidate-facing export uses evidence-backed summary claims, not the internal tailoring rationale. | “Tailored for…” text explains workflow decisions and gaps; it is not a professional resume summary. | Confirmed against the latest Agents & Automations run and covered by regression. |
 
 ---
 
 ## 6. Immediate Next Action
 
-Continue Phase B by adding explicit reviewable experience, education, and skill-group structures to the canonical profile, then use those structures to remove remaining heuristic grouping from export.
+Begin **Phase D** by adding DOCX text/structure verification, layout sanity checks, and automated artifact regressions.

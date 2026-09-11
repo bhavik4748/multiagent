@@ -282,6 +282,9 @@ export function buildResumeRenderModel(
     const contactClaims = claims.filter((claim) => claim.section === 'contact');
     const otherClaims = claims.filter((claim) => claim.section === 'other');
     const nameClaim = otherClaims.find((claim) => looksLikeName(claim.text));
+    const combinedIdentityClaim = otherClaims.find((claim) =>
+        /^.+\s+[—-]\s+.+$/.test(claim.text.trim()),
+    );
     const headlineClaim = nameClaim
         ? otherClaims.find(
             (claim) =>
@@ -291,7 +294,9 @@ export function buildResumeRenderModel(
         )
         : undefined;
     const identityClaimIds = new Set(
-        [nameClaim?.id, headlineClaim?.id].filter((id): id is string => Boolean(id)),
+        [nameClaim?.id, headlineClaim?.id, combinedIdentityClaim?.id].filter(
+            (id): id is string => Boolean(id),
+        ),
     );
     const bySourceFactId = new Map(
         claims.flatMap((claim) =>
