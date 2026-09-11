@@ -154,4 +154,20 @@ describe('TailoringService evidence guardrails', () => {
     ]);
     expect(normalized.unresolvedGaps).toContain('Kubernetes');
   });
+
+  it('honors a bullet-summary instruction over a conflicting editor preference', () => {
+    const presentation = (
+      service as never as {
+        resolveSummaryPresentation: (
+          instructions: string | undefined,
+          preference: 'paragraph' | 'bullets' | undefined,
+        ) => 'paragraph' | 'bullets';
+      }
+    ).resolveSummaryPresentation(
+      'Make the summary section bulleted instead of a paragraph.',
+      'paragraph',
+    );
+
+    expect(presentation).toBe('bullets');
+  });
 });

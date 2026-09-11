@@ -112,10 +112,13 @@ export interface ResumeRenderExperienceEntry {
     achievements: readonly ResumeRenderItem[];
 }
 
+export type SummaryPresentation = 'paragraph' | 'bullets';
+
 export interface ResumeRenderModel {
     schemaVersion: '1';
     identity: ResumeRenderIdentity;
     summary: readonly ResumeRenderItem[];
+    summaryPresentation?: SummaryPresentation;
     skills: readonly ResumeRenderItem[];
     experience: readonly ResumeRenderExperienceEntry[];
     education: readonly ResumeRenderItem[];
@@ -126,6 +129,7 @@ export interface ResumeRenderModel {
 export interface FinalResumePackage {
     resumeId: string;
     summary?: string;
+    summaryPresentation?: SummaryPresentation;
     markdown: string;
     claims: readonly TailoredResumeClaim[];
     unresolvedGaps: readonly string[];
@@ -275,7 +279,7 @@ function looksLikeName(text: string): boolean {
 
 /** Builds the canonical export projection without changing approved claim text or evidence. */
 export function buildResumeRenderModel(
-    resume: Pick<FinalResumePackage, 'claims'>,
+    resume: Pick<FinalResumePackage, 'claims' | 'summaryPresentation'>,
     sourceStructure?: CanonicalResumeStructure,
 ): ResumeRenderModel {
     const claims = resume.claims.filter((claim) => !isSectionHeading(claim.text));
@@ -307,17 +311,46 @@ export function buildResumeRenderModel(
         const claim = bySourceFactId.get(factId);
         return claim ? renderItem(claim) : undefined;
     };
-    const groupedExperience = sourceStructure?.experienceEntries
-        .map((entry, index) => ({
-            id: entry.id || `experience-${index + 1}`,
-            heading: entry.headingFactId
-                ? itemForSource(entry.headingFactId)
-                : undefined,
-            achievements: entry.itemFactIds
-                .map(itemForSource)
-                .filter((item): item is ResumeRenderItem => Boolean(item)),
-        }))
-        .filter((entry) => entry.heading || entry.achievements.length > 0);
+    const groupedExperience = (() => {
+        if (!sourceStructure?.experienceEntries) return undefined;
+
+        // A writer may consolidate adjacent source facts into one claim. Prefer
+        // that claim as an entry heading rather than also rendering it as a
+        // preceding entry's achievement.
+        const headingItemIds = new Set(
+            sourceStructure.experienceEntries
+                .map((entry) =>
+                    entry.headingFactId
+                        ? itemForSource(entry.headingFactId)?.id
+                        : undefined,
+                )
+                .filter((id): id is string => Boolean(id)),
+        );
+        const renderedItemIds = new Set<string>();
+
+        return sourceStructure.experienceEntries
+            .map((entry, index) => {
+                const heading = entry.headingFactId
+                    ? itemForSource(entry.headingFactId)
+                    : undefined;
+                if (heading) renderedItemIds.add(heading.id);
+                const achievements = entry.itemFactIds
+                    .map(itemForSource)
+                    .filter((item): item is ResumeRenderItem => Boolean(item))
+                    .filter(
+                        (item) =>
+                            !headingItemIds.has(item.id) &&
+                            !renderedItemIds.has(item.id),
+                    );
+                achievements.forEach((item) => renderedItemIds.add(item.id));
+                return {
+                    id: entry.id || `experience-${index + 1}`,
+                    ...(heading ? { heading } : {}),
+                    achievements,
+                };
+            })
+            .filter((entry) => entry.heading || entry.achievements.length > 0);
+    })();
     const experienceClaims = claims.filter((claim) => claim.section === 'experience');
     const experience: ResumeRenderExperienceEntry[] = [];
     let current: ResumeRenderExperienceEntry | undefined;
@@ -372,6 +405,7 @@ export function buildResumeRenderModel(
         summary: claims
             .filter((claim) => claim.section === 'summary')
             .map(renderItem),
+        summaryPresentation: resume.summaryPresentation ?? 'paragraph',
         skills:
             groupedItems(sourceStructure?.skillGroups) ??
             claims.filter((claim) => claim.section === 'skills').map(renderItem),
@@ -500,6 +534,9 @@ export function isTailoredResumeDraft(value: unknown): value is TailoredResumeDr
         typeof value.resumeId === 'string' &&
         value.resumeId.length > 0 &&
         (value.summary === undefined || typeof value.summary === 'string') &&
+        (value.summaryPresentation === undefined ||
+            value.summaryPresentation === 'paragraph' ||
+            value.summaryPresentation === 'bullets') &&
         typeof value.markdown === 'string' &&
         value.markdown.length > 0 &&
         Array.isArray(value.claims) &&

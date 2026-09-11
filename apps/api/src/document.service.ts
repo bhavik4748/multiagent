@@ -67,7 +67,14 @@ export class DocumentService {
       parts.push(
         model.identity.contactLines.map((item) => item.text).join(' | '),
       );
-    if (candidateSummary) parts.push('## Summary', candidateSummary);
+    if (candidateSummary) {
+      parts.push('## Summary');
+      if (model.summaryPresentation === 'bullets' && model.summary.length > 0) {
+        parts.push(...model.summary.map((item) => `- ${item.text}`));
+      } else {
+        parts.push(candidateSummary);
+      }
+    }
     this.addMarkdownItems(parts, 'Skills', model.skills);
     if (model.experience.length > 0) {
       parts.push('## Experience');
@@ -102,7 +109,12 @@ export class DocumentService {
       children.push(this.contact(model.identity.contactLines));
     }
     if (candidateSummary) {
-      children.push(this.heading('Summary'), this.body(candidateSummary));
+      children.push(
+        this.heading('Summary'),
+        ...(model.summaryPresentation === 'bullets' && model.summary.length > 0
+          ? model.summary.map((item) => this.bullet(item.text))
+          : [this.body(candidateSummary)]),
+      );
     }
     this.addSection(children, 'Skills', model.skills);
     if (model.experience.length > 0) {
@@ -469,11 +481,15 @@ export class DocumentService {
 
   private renderedText(resume: FinalResumePackage): (string | undefined)[] {
     const model = this.getRenderModel(resume);
+    const summaryText =
+      model.summaryPresentation === 'bullets' && model.summary.length > 0
+        ? model.summary.map((item) => item.text)
+        : [this.candidateSummary(resume, model)];
     return [
       model.identity.name?.text,
       model.identity.headline?.text,
       ...model.identity.contactLines.map((item) => item.text),
-      this.candidateSummary(resume, model),
+      ...summaryText,
       ...model.skills.map((item) => item.text),
       ...model.experience.flatMap((entry) => [
         entry.heading?.text,

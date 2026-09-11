@@ -83,6 +83,14 @@
         "/^cd /home/azureuser/projects/multiagent/apps/api && node -r ts-node/register -r tsconfig-paths/register <<'NODE'\nconst fs=require\\('fs'\\), os=require\\('os'\\), path=require\\('path'\\); const \\{ DocumentService \\}=require\\('\\./src/document\\.service'\\);\nconst run=JSON\\.parse\\(fs\\.readFileSync\\('\\.\\./\\.\\./data/tailoring-runs/run-dec24367-d31a-4ef2-9c0e-37b3d6fdb25b\\.json','utf8'\\)\\);\n\\(async\\(\\)=>\\{const dir=fs\\.mkdtempSync\\(path\\.join\\(os\\.tmpdir\\(\\),'resume-summary-'\\)\\); const out=await new DocumentService\\(\\)\\.createArtifacts\\(dir,'resume',run\\.finalResume\\); console\\.log\\(out\\.markdown\\.slice\\(0,800\\)\\);\\}\\)\\(\\)\\.catch\\(e=>\\{console\\.error\\(e\\.stack\\|\\|e\\);process\\.exitCode=1\\}\\);\nNODE$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^python3 - <<'PY'\nimport json, pathlib\nruns = \\[\\]\nfor path in pathlib\\.Path\\('data/tailoring-runs'\\)\\.glob\\('\\*\\.json'\\):\n    payload = json\\.loads\\(path\\.read_text\\(\\)\\)\n    if payload\\.get\\('status'\\) == 'completed':\n        runs\\.append\\(\\(payload\\.get\\('completedAt', ''\\), path\\.name, payload\\.get\\('approvalStatus'\\), payload\\.get\\('version'\\), payload\\.get\\('error'\\), payload\\.get\\('reviewError'\\)\\)\\)\nfor run in sorted\\(runs, reverse=True\\)\\[:10\\]:\n    print\\(run\\)\nPY$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python3 - <<'PY'\nimport json\npath = 'data/tailoring-runs/run-22d974df-5efe-45a1-8b96-e09dfa203a2b\\.json'\nrun = json\\.load\\(open\\(path\\)\\)\nprint\\(\\{key: run\\.get\\(key\\) for key in \\('status', 'approvalStatus', 'approvedAt', 'additionalInstructions'\\)\\}\\)\nfinal = run\\.get\\('finalResume'\\) or \\{\\}\nprint\\(\\{key: final\\.get\\(key\\) for key in \\('resumeId', 'summary', 'summaryPresentation'\\)\\}\\)\nmodel = final\\.get\\('renderModel'\\) or \\{\\}\nprint\\(\\{'modelSummaryPresentation': model\\.get\\('summaryPresentation'\\), 'summaryItems': len\\(model\\.get\\('summary', \\[\\]\\)\\)\\}\\)\nPY$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

@@ -57,6 +57,28 @@ describe('DocumentService artifact verification', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('renders an explicitly bullet-style summary as Markdown bullets', () => {
+    const markdown = service.renderMarkdown({
+      ...resume,
+      renderModel: {
+        schemaVersion: '1' as const,
+        identity: { contactLines: [] },
+        summary: [
+          { id: 'summary-1', text: 'First approved summary claim.', evidence: [] },
+          { id: 'summary-2', text: 'Second approved summary claim.', evidence: [] },
+        ],
+        summaryPresentation: 'bullets',
+        skills: [],
+        experience: [],
+        education: [],
+        certifications: [],
+        additionalInformation: [],
+      },
+    });
+
+    expect(markdown).toContain('## Summary\n\n- First approved summary claim.\n\n- Second approved summary claim.');
+  });
+
   it('validates only content rendered in the PDF', async () => {
     const getText = jest.fn().mockResolvedValue({
       text: 'An earlier summary draft. Candidate Name Built approved APIs.',
@@ -144,6 +166,39 @@ describe('DocumentService artifact verification', () => {
 
     await expect(
       verify('resume.docx', 'resume.pdf', structuredResume),
+    ).resolves.toBeUndefined();
+  });
+
+  it('verifies each bullet-style summary item independently', async () => {
+    const bulletSummaryResume = {
+      ...resume,
+      renderModel: {
+        schemaVersion: '1' as const,
+        identity: { contactLines: [] },
+        summary: [
+          { id: 'summary-1', text: 'First approved summary claim.', evidence: [] },
+          { id: 'summary-2', text: 'Second approved summary claim.', evidence: [] },
+        ],
+        summaryPresentation: 'bullets' as const,
+        skills: [],
+        experience: [],
+        education: [],
+        certifications: [],
+        additionalInformation: [],
+      },
+    };
+    jest.mocked(PDFParse).mockImplementation(
+      () =>
+        ({
+          getText: jest.fn().mockResolvedValue({
+            text: 'First approved summary claim.\nSecond approved summary claim.',
+          }),
+          destroy: jest.fn().mockResolvedValue(undefined),
+        }) as never,
+    );
+
+    await expect(
+      verify('resume.docx', 'resume.pdf', bulletSummaryResume),
     ).resolves.toBeUndefined();
   });
 

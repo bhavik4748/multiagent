@@ -41,6 +41,7 @@ describe('ResumeRenderModel projection', () => {
         expect(model.summary.map((item) => item.text)).toEqual([
             'Builds reliable TypeScript services.',
         ]);
+        expect(model.summaryPresentation).toBe('paragraph');
         expect(model.skills[0].text).toBe('TypeScript, NestJS, Azure');
         expect(model.experience).toHaveLength(1);
         expect(model.experience[0].heading?.text).toContain('Northwind Systems');
@@ -65,6 +66,15 @@ describe('ResumeRenderModel projection', () => {
             'second',
         ]);
         expect(model.additionalInformation.map((item) => item.id)).toEqual(['other']);
+    });
+
+    it('preserves an explicit bullet summary preference', () => {
+        const model = buildResumeRenderModel({
+            summaryPresentation: 'bullets',
+            claims: [claim('summary', 'Builds reliable TypeScript services.', 'summary')],
+        });
+
+        expect(model.summaryPresentation).toBe('bullets');
     });
 
     it('rejects render items without evidence', () => {
@@ -118,5 +128,45 @@ describe('ResumeRenderModel projection', () => {
             }),
         ]);
         expect(model.education.map((item) => item.id)).toEqual(['education']);
+    });
+
+    it('renders a consolidated role claim only once when its evidence spans adjacent entries', () => {
+        const model = buildResumeRenderModel(
+            {
+                claims: [
+                    {
+                        id: 'role',
+                        text: 'Senior Engineer | Contoso | 2023 - Present',
+                        section: 'experience',
+                        evidence: [
+                            { sourceFactId: 'fact-title', sourceSegmentId: 'segment-title' },
+                            { sourceFactId: 'fact-company', sourceSegmentId: 'segment-company' },
+                        ],
+                    },
+                ],
+            },
+            {
+                identity: { contactFactIds: [] },
+                skillGroups: [],
+                experienceEntries: [
+                    { id: 'previous', itemFactIds: ['fact-title'] },
+                    {
+                        id: 'current',
+                        headingFactId: 'fact-company',
+                        itemFactIds: [],
+                    },
+                ],
+                educationEntries: [],
+                certificationFactIds: [],
+            },
+        );
+
+        expect(model.experience).toEqual([
+            {
+                id: 'current',
+                heading: expect.objectContaining({ id: 'role' }),
+                achievements: [],
+            },
+        ]);
     });
 });

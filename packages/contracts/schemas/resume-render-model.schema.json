@@ -27,6 +27,13 @@
                 "$ref": "#/$defs/item"
             }
         },
+        "summaryPresentation": {
+            "type": "string",
+            "enum": [
+                "paragraph",
+                "bullets"
+            ]
+        },
         "skills": {
             "type": "array",
             "items": {

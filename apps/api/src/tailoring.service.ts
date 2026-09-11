@@ -88,13 +88,21 @@ export class TailoringService {
         atsReview,
         readabilityReview,
         gaps,
+        request.additionalInstructions,
       );
-      const normalizedFinalResume = this.normalizeFinalResume(
+      const normalizedEditorResult = this.normalizeFinalResume(
         editorResult,
         atsReview,
         readabilityReview,
         gaps,
       );
+      const normalizedFinalResume = {
+        ...normalizedEditorResult,
+        summaryPresentation: this.resolveSummaryPresentation(
+          request.additionalInstructions,
+          normalizedEditorResult.summaryPresentation,
+        ),
+      };
       const finalClaims = this.deduplicateClaims(normalizedFinalResume.claims);
       const finalResume = {
         ...normalizedFinalResume,
@@ -395,6 +403,23 @@ export class TailoringService {
       .replace(/[‐‑‒–—]/g, '-')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  private resolveSummaryPresentation(
+    additionalInstructions: string | undefined,
+    editorPreference: 'paragraph' | 'bullets' | undefined,
+  ): 'paragraph' | 'bullets' {
+    const instruction = additionalInstructions?.toLocaleLowerCase() ?? '';
+    const mentionsSummary = /\b(summary|professional summary|profile)\b/.test(
+      instruction,
+    );
+    if (mentionsSummary && /\b(bullet(?:ed|s)?|list(?:-style)?)\b/.test(instruction)) {
+      return 'bullets';
+    }
+    if (mentionsSummary && /\bparagraph(?:s)?\b/.test(instruction)) {
+      return 'paragraph';
+    }
+    return editorPreference ?? 'paragraph';
   }
 
   private async persist(result: TailoringRunResult) {

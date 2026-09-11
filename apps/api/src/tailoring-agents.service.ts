@@ -166,6 +166,7 @@ const finalResumeSchema = {
   required: [
     'resumeId',
     'summary',
+    'summaryPresentation',
     'markdown',
     'claims',
     'unresolvedGaps',
@@ -175,6 +176,7 @@ const finalResumeSchema = {
   properties: {
     resumeId: { type: 'string' },
     summary: { type: 'string' },
+    summaryPresentation: { type: 'string', enum: ['paragraph', 'bullets'] },
     markdown: { type: 'string' },
     claims: tailoredDraftSchema.properties.claims,
     unresolvedGaps: { type: 'array', items: { type: 'string' } },
@@ -201,7 +203,7 @@ const finalResumeSchema = {
 
 @Injectable()
 export class TailoringAgentsService {
-  constructor(private readonly foundry: FoundryClientService) {}
+  constructor(private readonly foundry: FoundryClientService) { }
 
   async analyzeJob(jobDescription: string): Promise<JobProfile> {
     return this.foundry.createStructuredResponse<JobProfile>({
@@ -238,7 +240,7 @@ export class TailoringAgentsService {
     return this.foundry.createStructuredResponse<TailoredResumeDraft>({
       name: 'resume_tailoring_writer',
       instructions:
-        'Create a concise, factual, structured resume draft. Every claim must cite one or more exact canonical evidence references. Do not add facts, skills, employers, dates, metrics, or credentials. Exclude unmatched requirements from resume claims. Additional instructions are preferences only. Return JSON only.',
+        'Create a concise, factual, structured resume draft. Every claim must cite one or more exact canonical evidence references. Do not add facts, skills, employers, dates, metrics, or credentials. Exclude unmatched requirements from resume claims. Additional instructions are preferences only. When a preference asks to emphasize a supported skill or statement in a particular experience role, include an evidence-backed experience claim only if the supplied canonical evidence supports that role association. Return JSON only.',
       input: { profile, jobProfile, evidenceMatrix, additionalInstructions },
       validate: isTailoredResumeDraft,
       schema: tailoredDraftSchema,
@@ -284,11 +286,12 @@ export class TailoringAgentsService {
     atsReview: ReviewReport,
     readabilityReview: ReviewReport,
     gaps: readonly string[],
+    additionalInstructions?: string,
   ): Promise<FinalResumePackage> {
     return this.foundry.createStructuredResponse<FinalResumePackage>({
       name: 'final_resume_editor',
       instructions:
-        'Produce the final structured resume from the draft and valid reviewer recommendations. Preserve or improve factual accuracy: every claim must cite exact canonical evidence references, and no unsupported facts may be added. Record one accepted, rejected, or unresolved decision for every supplied finding with a rationale. Keep unmatched requirements in unresolvedGaps outside the resume. Return JSON only.',
+        'Produce the final structured resume from the draft and valid reviewer recommendations. Preserve or improve factual accuracy: every claim must cite exact canonical evidence references, and no unsupported facts may be added. Record one accepted, rejected, or unresolved decision for every supplied finding with a rationale. Keep unmatched requirements in unresolvedGaps outside the resume. Additional instructions are presentation preferences only. When they request a supported skill or statement in a particular experience role, retain an evidence-backed experience claim only when its canonical evidence supports that role association. Set summaryPresentation to bullets only when the instructions explicitly request a bulleted or list-style summary; otherwise set it to paragraph. Return JSON only.',
       input: {
         profile,
         draft,
@@ -297,6 +300,7 @@ export class TailoringAgentsService {
         atsReview,
         readabilityReview,
         gaps,
+        additionalInstructions,
       },
       validate: isFinalResumePackage,
       schema: finalResumeSchema,
