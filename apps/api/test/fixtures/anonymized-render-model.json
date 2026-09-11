@@ -1,0 +1,91 @@
+{
+    "resumeId": "fixture-resume",
+    "summary": "Platform engineer delivering reliable cloud services.",
+    "markdown": "# Avery Morgan",
+    "claims": [],
+    "unresolvedGaps": [],
+    "decisions": [],
+    "changeLog": [],
+    "renderModel": {
+        "schemaVersion": "1",
+        "identity": {
+            "name": {
+                "id": "name",
+                "text": "Avery Morgan",
+                "evidence": []
+            },
+            "headline": {
+                "id": "headline",
+                "text": "Platform Engineer",
+                "evidence": []
+            },
+            "contactLines": [
+                {
+                    "id": "email",
+                    "text": "avery@example.test",
+                    "evidence": []
+                },
+                {
+                    "id": "location",
+                    "text": "Remote, US",
+                    "evidence": []
+                }
+            ]
+        },
+        "summary": [
+            {
+                "id": "summary",
+                "text": "Platform engineer delivering reliable cloud services.",
+                "evidence": []
+            }
+        ],
+        "skills": [
+            {
+                "id": "skills",
+                "text": "Cloud: Azure, Kubernetes, TypeScript",
+                "evidence": []
+            }
+        ],
+        "experience": [
+            {
+                "id": "role-one",
+                "heading": {
+                    "id": "role-one-heading",
+                    "text": "Platform Engineer | Northwind | 2023 - Present",
+                    "evidence": []
+                },
+                "achievements": [
+                    {
+                        "id": "role-one-result",
+                        "text": "Built observable APIs used by internal product teams.",
+                        "evidence": []
+                    }
+                ]
+            },
+            {
+                "id": "role-two",
+                "heading": {
+                    "id": "role-two-heading",
+                    "text": "Software Engineer | Contoso | 2020 - 2023",
+                    "evidence": []
+                },
+                "achievements": [
+                    {
+                        "id": "role-two-result",
+                        "text": "Improved deployment reliability through automated validation.",
+                        "evidence": []
+                    }
+                ]
+            }
+        ],
+        "education": [
+            {
+                "id": "education",
+                "text": "B.S. Computer Science, Example University",
+                "evidence": []
+            }
+        ],
+        "certifications": [],
+        "additionalInformation": []
+    }
+}

@@ -62,6 +62,9 @@ export interface CanonicalResumeStructure {
 
 export interface CanonicalResumeProfile {
     resumeId: string;
+    /** SHA-256 fingerprint of the immutable uploaded source artifact. */
+    sourceHash?: string;
+    sourceFormat?: 'docx' | 'pdf';
     claims: readonly ResumeClaim[];
     sourceSegments: readonly ResumeSourceSegment[];
     structure?: CanonicalResumeStructure;

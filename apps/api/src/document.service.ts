@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import {
   AlignmentType,
   BorderStyle,
@@ -11,23 +15,24 @@ import {
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import {
-  access,
   copyFile,
   mkdir,
-  readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { PDFParse } from 'pdf-parse';
 import {
   buildResumeRenderModel,
   type FinalResumePackage,
   type ResumeRenderItem,
   type ResumeRenderModel,
 } from '@resume-tweak/contracts';
+import {
+  ArtifactInspectionService,
+  normalizeArtifactText,
+} from './artifact-inspection.service';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,6 +42,11 @@ export class DocumentService {
     __dirname,
     '../../../outputs/temporary',
   );
+
+  constructor(
+    @Inject(ArtifactInspectionService)
+    private readonly artifacts = new ArtifactInspectionService(),
+  ) { }
 
   async createArtifacts(
     outputDirectory: string,
@@ -306,7 +316,7 @@ export class DocumentService {
     const deduplicateItems = (items: readonly ResumeRenderItem[]) => {
       const seen = new Set<string>();
       return items.filter((item) => {
-        const key = this.normalize(item.text);
+        const key = normalizeArtifactText(item.text);
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -321,12 +331,13 @@ export class DocumentService {
         (entry, index, entries) =>
           !entries.slice(0, index).some(
             (previous) =>
-              this.normalize(previous.heading?.text ?? '') ===
-              this.normalize(entry.heading?.text ?? '') &&
+              normalizeArtifactText(previous.heading?.text ?? '') ===
+              normalizeArtifactText(entry.heading?.text ?? '') &&
               previous.achievements.every((item) =>
                 entry.achievements.some(
                   (candidate) =>
-                    this.normalize(candidate.text) === this.normalize(item.text),
+                    normalizeArtifactText(candidate.text) ===
+                    normalizeArtifactText(item.text),
                 ),
               ),
           ),
@@ -447,57 +458,84 @@ export class DocumentService {
     pdfPath: string,
     resume: FinalResumePackage,
   ): Promise<void> {
-    await access(docxPath);
-    const parser = new PDFParse({ data: await readFile(pdfPath) });
-    try {
-      const extractedText = (await parser.getText()).text;
-      const expectedText = this.renderedText(resume)
-        .filter((value): value is string => Boolean(value?.trim()))
-        .map((value) => this.normalize(value));
-      const missing = expectedText.filter(
-        (value) => !this.normalize(extractedText).includes(value),
+    const [docx, pdf] = await Promise.all([
+      this.artifacts.inspectDocx(docxPath),
+      this.artifacts.inspectPdf(pdfPath),
+    ]);
+    const violations = [...docx.violations, ...pdf.violations];
+    if (violations.length > 0) {
+      throw new InternalServerErrorException(
+        `Generated artifacts failed safety inspection: ${violations.map((violation) => violation.code).join(', ')}.`,
       );
-      if (missing.length > 0) {
+    }
+
+    const expected = this.expectedExportSequence(resume);
+    this.assertExpectedContent('DOCX', docx.text, expected);
+    this.assertExpectedContent('PDF', pdf.text, expected);
+  }
+
+  private assertExpectedContent(
+    artifact: 'DOCX' | 'PDF',
+    text: string,
+    expected: readonly string[],
+  ): void {
+    const normalizedArtifact = normalizeArtifactText(text);
+    let previousIndex = -1;
+    for (const value of expected) {
+      const normalized = normalizeArtifactText(value);
+      const index = normalizedArtifact.indexOf(normalized, previousIndex + 1);
+      if (index < 0) {
         throw new InternalServerErrorException(
-          'Generated PDF text did not match the approved resume content.',
+          `Generated ${artifact} omitted approved render-model content.`,
         );
       }
-    } finally {
-      await parser.destroy();
+      const normalizedLines = text
+        .split(/\r?\n/u)
+        .map((line) => normalizeArtifactText(line));
+      if (normalizedLines.filter((line) => line === normalized).length > 1) {
+        throw new InternalServerErrorException(
+          `Generated ${artifact} contains duplicate approved render-model content.`,
+        );
+      }
+      previousIndex = index;
     }
   }
 
-  private normalize(value: string): string {
-    return value
-      .replace(/([\p{L}\p{N}])[-‐‑‒–—]\s+([\p{L}\p{N}])/gu, '$1-$2')
-      .replace(/^[\s•●▪◦*-]+/, '')
-      .replace(/[‐‑‒–—]/g, '-')
-      .replace(/[“”]/g, '"')
-      .replace(/[‘’]/g, "'")
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-  }
-
-  private renderedText(resume: FinalResumePackage): (string | undefined)[] {
+  private expectedExportSequence(resume: FinalResumePackage): string[] {
     const model = this.getRenderModel(resume);
-    const summaryText =
-      model.summaryPresentation === 'bullets' && model.summary.length > 0
-        ? model.summary.map((item) => item.text)
-        : [this.candidateSummary(resume, model)];
-    return [
+    const sequence: (string | undefined)[] = [
       model.identity.name?.text,
       model.identity.headline?.text,
       ...model.identity.contactLines.map((item) => item.text),
-      ...summaryText,
-      ...model.skills.map((item) => item.text),
-      ...model.experience.flatMap((entry) => [
+    ];
+    if (this.candidateSummary(resume, model)) {
+      sequence.push('Summary');
+      sequence.push(
+        ...(model.summary.length > 0
+          ? model.summary.map((item) => item.text)
+          : [this.candidateSummary(resume, model)]),
+      );
+    }
+    const addSection = (heading: string, values: readonly ResumeRenderItem[]) => {
+      if (values.length > 0) sequence.push(heading, ...values.map((item) => item.text));
+    };
+    addSection('Skills', model.skills);
+    if (model.experience.length > 0) {
+      sequence.push('Experience');
+      sequence.push(...model.experience.flatMap((entry) => [
         entry.heading?.text,
         ...entry.achievements.map((item) => item.text),
-      ]),
-      ...model.education.map((item) => item.text),
-      ...model.certifications.map((item) => item.text),
-      ...model.additionalInformation.map((item) => item.text),
-    ];
+      ]));
+    }
+    addSection('Education', model.education);
+    addSection('Certifications', model.certifications);
+    addSection('Additional Information', model.additionalInformation);
+    const seen = new Set<string>();
+    return sequence.filter((value): value is string => {
+      const normalized = normalizeArtifactText(value ?? '');
+      if (!normalized || seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
   }
 }

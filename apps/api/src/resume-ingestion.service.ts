@@ -3,9 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { extractRawText } from 'mammoth';
 import { PDFParse } from 'pdf-parse';
 import type {
@@ -23,18 +23,27 @@ const DOCX_MIME_TYPES = new Set([
 ]);
 const PDF_MIME_TYPES = new Set(['application/pdf', 'application/octet-stream']);
 
+type SourceFormat = 'docx' | 'pdf';
+type IngestionIndex = Record<string, { resumeId: string; sourceFormat: SourceFormat }>;
+type IngestionResult = CanonicalResumeProfile & { reused?: boolean };
+
 @Injectable()
 export class ResumeIngestionService {
   private readonly dataRoot = resolve(__dirname, '../../../data');
+  private indexWrite: Promise<void> = Promise.resolve();
 
-  async ingest(file: Express.Multer.File): Promise<CanonicalResumeProfile> {
+  async ingest(file: Express.Multer.File): Promise<IngestionResult> {
     this.validateUpload(file);
     const isPdf = this.isPdf(file);
+    const sourceFormat: SourceFormat = isPdf ? 'pdf' : 'docx';
+    const sourceHash = createHash('sha256').update(file.buffer).digest('hex');
+    const cachedProfile = await this.findCachedProfile(sourceHash, sourceFormat);
+    if (cachedProfile) return { ...cachedProfile, reused: true };
     const paragraphs = isPdf
       ? await this.extractPdfParagraphs(file.buffer)
       : await this.extractDocxParagraphs(file.buffer);
 
-    return this.persistProfile(file, paragraphs, isPdf ? 'pdf' : 'docx');
+    return this.persistProfile(file, paragraphs, sourceFormat, sourceHash);
   }
 
   private async extractDocxParagraphs(buffer: Buffer): Promise<string[]> {
@@ -84,7 +93,8 @@ export class ResumeIngestionService {
   private async persistProfile(
     file: Express.Multer.File,
     paragraphs: string[],
-    sourceExtension: 'docx' | 'pdf',
+    sourceExtension: SourceFormat,
+    sourceHash = createHash('sha256').update(file.buffer).digest('hex'),
   ): Promise<CanonicalResumeProfile> {
     const resumeId = `resume-${randomUUID()}`;
     const resumeDirectory = join(this.dataRoot, 'base', resumeId);
@@ -114,6 +124,8 @@ export class ResumeIngestionService {
     }));
     const profile: CanonicalResumeProfile = {
       resumeId,
+      sourceHash,
+      sourceFormat: sourceExtension,
       claims,
       sourceSegments,
       structure: this.buildStructure(claims),
@@ -123,7 +135,61 @@ export class ResumeIngestionService {
     await mkdir(resumeDirectory, { recursive: true });
     await writeFile(sourcePath, file.buffer);
     await writeFile(profilePath, JSON.stringify(profile, null, 2), 'utf8');
+    await this.updateIngestionIndex(sourceHash, { resumeId, sourceFormat: sourceExtension });
     return profile;
+  }
+
+  private async findCachedProfile(
+    sourceHash: string,
+    sourceFormat: SourceFormat,
+  ): Promise<CanonicalResumeProfile | undefined> {
+    const entry = (await this.readIngestionIndex())[sourceHash];
+    if (!entry || entry.sourceFormat !== sourceFormat) return undefined;
+    try {
+      const profile = await this.getProfile(entry.resumeId);
+      await access(join(this.dataRoot, 'base', entry.resumeId, `source.${sourceFormat}`));
+      return profile.sourceHash === sourceHash ? profile : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private ingestionIndexPath(): string {
+    return join(this.dataRoot, 'manifests', 'resume-ingestion-index.json');
+  }
+
+  private async readIngestionIndex(): Promise<IngestionIndex> {
+    try {
+      const index = JSON.parse(await readFile(this.ingestionIndexPath(), 'utf8')) as unknown;
+      if (!index || typeof index !== 'object' || Array.isArray(index)) {
+        throw new Error('Invalid resume ingestion index.');
+      }
+      return index as IngestionIndex;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
+      throw error;
+    }
+  }
+
+  private async updateIngestionIndex(
+    sourceHash: string,
+    entry: IngestionIndex[string],
+  ): Promise<void> {
+    const previousWrite = this.indexWrite;
+    let release!: () => void;
+    this.indexWrite = new Promise<void>((resolve) => { release = resolve; });
+    await previousWrite;
+    try {
+      const index = await this.readIngestionIndex();
+      index[sourceHash] = entry;
+      const indexPath = this.ingestionIndexPath();
+      await mkdir(resolve(indexPath, '..'), { recursive: true });
+      const temporaryPath = `${indexPath}.tmp-${randomUUID()}`;
+      await writeFile(temporaryPath, JSON.stringify(index, null, 2), 'utf8');
+      await rename(temporaryPath, indexPath);
+    } finally {
+      release();
+    }
   }
 
   async getProfile(resumeId: string): Promise<CanonicalResumeProfile> {

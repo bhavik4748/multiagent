@@ -15,6 +15,17 @@
             "type": "string",
             "minLength": 1
         },
+        "sourceHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceFormat": {
+            "type": "string",
+            "enum": [
+                "docx",
+                "pdf"
+            ]
+        },
         "claims": {
             "type": "array",
             "items": {

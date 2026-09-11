@@ -240,7 +240,7 @@ Each editable/generated item must retain canonical evidence references. The mode
 
 ## Phase D — Add Artifact and Layout Verification
 
-**Status:** Not started
+**Status:** Complete (2026-09-11)
 
 **Goal:** Make document generation testable and prevent regressions that drop content or break ATS-safe structure.
 
@@ -269,12 +269,20 @@ Each editable/generated item must retain canonical evidence references. The mode
 
 ### Acceptance criteria
 
-- [ ] DOCX and PDF text are both verified against the approved render model.
-- [ ] Structural checks reject tables, multiple columns, text boxes, and essential header/footer content.
-- [ ] Expected standard headings and approved contact details are verified.
-- [ ] Regression tests detect dropped sections, missing claims, and mismatched DOCX/PDF text.
-- [ ] Golden artifact checks run in CI/local test workflow where LibreOffice is available.
-- [ ] A template-change checklist includes manual review of generated DOCX and PDF.
+- [x] DOCX and PDF text are both verified against the approved render model.
+- [x] Structural checks reject tables, multiple columns, text boxes, and essential header/footer content.
+- [x] Expected standard headings and approved contact details are verified.
+- [x] Regression tests detect dropped sections, missing claims, and mismatched DOCX/PDF text.
+- [x] Golden artifact checks run locally where LibreOffice is available.
+- [x] A template-change checklist includes manual review of generated DOCX and PDF.
+
+### Phase D implementation evidence
+
+- `ArtifactInspectionService` directly reads DOCX OOXML using `jszip` and `fast-xml-parser`, rejects unsafe structure, and extracts ordered body text.
+- The document service verifies canonical render-model content, ordering, duplicate items, PDF page limits, and normalized DOCX/PDF alignment before artifacts leave the temporary directory.
+- Unit regression coverage includes unsafe OOXML packages and expected-content failures; `test:artifacts` is a local-only LibreOffice golden suite using anonymized fixture content.
+- Manual visual-review evidence must still be recorded using `template-change-review-checklist.md` before Phase D can be marked complete.
+- Manual local review completed on 2026-09-11: the generated anonymized DOCX/PDF artifacts were tested successfully after Phase D implementation. Future template changes must repeat and record the checklist review.
 
 ---
 

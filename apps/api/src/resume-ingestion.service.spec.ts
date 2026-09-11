@@ -176,4 +176,26 @@ describe('ResumeIngestionService structured extraction', () => {
             profile.claims[0].id,
         ]);
     });
+
+    it('reuses a persisted profile for identical source bytes', async () => {
+        const file = {
+            originalname: 'resume.docx',
+            mimetype: 'application/octet-stream',
+            size: 4,
+            buffer: Buffer.from('same'),
+        } as Express.Multer.File;
+        const extract = jest
+            .spyOn(service as never, 'extractDocxParagraphs')
+            .mockResolvedValue(['Jordan Lee', 'Skills', 'TypeScript']);
+
+        const first = await service.ingest(file);
+        const second = await service.ingest(file);
+
+        expect(second).toMatchObject({
+            resumeId: first.resumeId,
+            status: 'draft',
+            reused: true,
+        });
+        expect(extract).toHaveBeenCalledTimes(1);
+    });
 });

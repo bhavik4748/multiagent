@@ -18,6 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
+    "test:artifacts": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json --runInBand artifact-golden.e2e-spec.ts",
     "test:foundry-smoke": "jest --config ./test/jest-foundry-smoke.json --runInBand"
   },
   "dependencies": {
@@ -30,6 +31,9 @@
     "@types/multer": "^2.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "docx": "^9.7.1",
+    "fast-xml-parser": "^5.11.1",
+    "jszip": "^3.10.2",
     "mammoth": "^1.12.2",
     "openai": "^6.26.0",
     "pdf-parse": "^2.4.5",
@@ -46,7 +50,6 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
-    "docx": "^9.7.1",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

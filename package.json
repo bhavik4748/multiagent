@@ -11,6 +11,7 @@
         "test:e2e": "pnpm --filter @resume-tweak/api test:e2e",
         "test:foundry-smoke": "pnpm --filter @resume-tweak/api test:foundry-smoke",
         "start:web": "pnpm --filter @resume-tweak/web dev",
-        "start:api": "pnpm --filter @resume-tweak/api start:dev"
+        "start:api": "pnpm --filter @resume-tweak/api start:dev",
+        "restart:api": "fuser -k 3000/tcp 2>/dev/null || true; pnpm start:api"
     }
 }

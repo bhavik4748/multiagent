@@ -12,6 +12,7 @@ import { TailoringService } from './tailoring.service';
 import { TailoringAgentsService } from './tailoring-agents.service';
 import { DocumentService } from './document.service';
 import { VersionService } from './version.service';
+import { ArtifactInspectionService } from './artifact-inspection.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
@@ -27,9 +28,10 @@ import { VersionService } from './version.service';
     FoundryClientService,
     ResumeIngestionService,
     TailoringAgentsService,
+    ArtifactInspectionService,
     DocumentService,
     VersionService,
     TailoringService,
   ],
 })
-export class AppModule {}
+export class AppModule { }
