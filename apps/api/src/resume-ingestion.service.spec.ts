@@ -89,12 +89,15 @@ describe('ResumeIngestionService structured extraction', () => {
                     sourceExtension: 'docx' | 'pdf',
                 ) => Promise<{
                     resumeId: string;
-                    claims: { text: string; section: string }[];
+                    claims: { id: string; text: string; section: string }[];
                     sourceSegments: {
                         text: string;
                         section?: string;
                         isHeading?: boolean;
                     }[];
+                    structure?: {
+                        skillGroups: { itemFactIds: string[] }[];
+                    };
                 }>;
             }
         ).persistProfile.bind(service);

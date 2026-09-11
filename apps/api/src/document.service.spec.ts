@@ -260,37 +260,37 @@ describe('DocumentService artifact verification', () => {
     ).createDocument.bind(service);
     expect(() =>
       createDocument({
-      ...resume,
-      renderModel: {
-        schemaVersion: '1',
-        identity: {
-          name: { id: 'name', text: 'Jordan Lee', evidence: [] },
-          headline: { id: 'headline', text: 'Platform Engineer', evidence: [] },
-          contactLines: [
-            { id: 'contact', text: 'jordan@example.test', evidence: [] },
-          ],
-        },
-        summary: [],
-        skills: [
-          { id: 'skill', text: 'Cloud: Azure, Kubernetes', evidence: [] },
-        ],
-        experience: [
-          {
-            id: 'experience-1',
-            heading: {
-              id: 'role',
-              text: 'Platform Engineer | Northwind | 2022 - Present',
-              evidence: [],
-            },
-            achievements: [
-              { id: 'achievement', text: 'Built reliable APIs.', evidence: [] },
+        ...resume,
+        renderModel: {
+          schemaVersion: '1',
+          identity: {
+            name: { id: 'name', text: 'Jordan Lee', evidence: [] },
+            headline: { id: 'headline', text: 'Platform Engineer', evidence: [] },
+            contactLines: [
+              { id: 'contact', text: 'jordan@example.test', evidence: [] },
             ],
           },
-        ],
-        education: [],
-        certifications: [],
-        additionalInformation: [],
-      },
+          summary: [],
+          skills: [
+            { id: 'skill', text: 'Cloud: Azure, Kubernetes', evidence: [] },
+          ],
+          experience: [
+            {
+              id: 'experience-1',
+              heading: {
+                id: 'role',
+                text: 'Platform Engineer | Northwind | 2022 - Present',
+                evidence: [],
+              },
+              achievements: [
+                { id: 'achievement', text: 'Built reliable APIs.', evidence: [] },
+              ],
+            },
+          ],
+          education: [],
+          certifications: [],
+          additionalInformation: [],
+        },
       }),
     ).not.toThrow();
     const markdown = service.renderMarkdown({

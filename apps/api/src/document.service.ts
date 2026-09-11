@@ -243,13 +243,13 @@ export class DocumentService {
         }),
         ...(secondary.length > 0
           ? [
-              new TextRun({
-                text: ` | ${secondary.join('|').trim()}`,
-                font: 'Arial',
-                size: 17,
-                color: '4B5563',
-              }),
-            ]
+            new TextRun({
+              text: ` | ${secondary.join('|').trim()}`,
+              font: 'Arial',
+              size: 17,
+              color: '4B5563',
+            }),
+          ]
           : []),
       ],
       keepNext: true,
@@ -287,8 +287,8 @@ export class DocumentService {
     const rebuiltModel = buildResumeRenderModel(resume);
     const model =
       persistedModel &&
-      (persistedModel.experience.length === 0 ||
-        persistedModel.experience.some((entry) => entry.heading))
+        (persistedModel.experience.length === 0 ||
+          persistedModel.experience.some((entry) => entry.heading))
         ? persistedModel
         : rebuiltModel;
     const deduplicateItems = (items: readonly ResumeRenderItem[]) => {
@@ -372,14 +372,14 @@ export class DocumentService {
       children: [
         ...(label
           ? [
-              new TextRun({
-                text: `${label} `,
-                bold: true,
-                font: 'Arial',
-                size: 18,
-                color: '1F2937',
-              }),
-            ]
+            new TextRun({
+              text: `${label} `,
+              bold: true,
+              font: 'Arial',
+              size: 18,
+              color: '1F2937',
+            }),
+          ]
           : []),
         new TextRun({ text: value, font: 'Arial', size: 18 }),
       ],
