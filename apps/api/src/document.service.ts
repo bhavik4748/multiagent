@@ -21,7 +21,12 @@ import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { PDFParse } from 'pdf-parse';
-import type { FinalResumePackage } from '@resume-tweak/contracts';
+import {
+  buildResumeRenderModel,
+  type FinalResumePackage,
+  type ResumeRenderItem,
+  type ResumeRenderModel,
+} from '@resume-tweak/contracts';
 
 const execFileAsync = promisify(execFile);
 
@@ -52,22 +57,30 @@ export class DocumentService {
   }
 
   renderMarkdown(resume: FinalResumePackage): string {
+    const model = this.getRenderModel(resume);
     const parts: string[] = [];
     if (resume.summary?.trim()) parts.push('## Summary', resume.summary.trim());
-    for (const section of [
-      'skills',
-      'experience',
-      'education',
-      'certifications',
-      'other',
-    ] as const) {
-      const claims = resume.claims.filter((claim) => claim.section === section);
-      if (claims.length === 0) continue;
+    if (model.identity.name) parts.push(`# ${model.identity.name.text}`);
+    if (model.identity.headline) parts.push(model.identity.headline.text);
+    if (model.identity.contactLines.length > 0)
       parts.push(
-        `## ${this.headingFor(section)}`,
-        ...claims.map((claim) => `- ${claim.text.trim()}`),
+        model.identity.contactLines.map((item) => item.text).join(' | '),
       );
+    this.addMarkdownItems(parts, 'Skills', model.skills);
+    if (model.experience.length > 0) {
+      parts.push('## Experience');
+      for (const entry of model.experience) {
+        if (entry.heading) parts.push(`### ${entry.heading.text}`);
+        parts.push(...entry.achievements.map((item) => `- ${item.text}`));
+      }
     }
+    this.addMarkdownItems(parts, 'Education', model.education);
+    this.addMarkdownItems(parts, 'Certifications', model.certifications);
+    this.addMarkdownItems(
+      parts,
+      'Additional Information',
+      model.additionalInformation,
+    );
     return parts.join('\n\n').trim();
   }
 
@@ -76,22 +89,35 @@ export class DocumentService {
   }
 
   private createDocument(resume: FinalResumePackage): Document {
+    const model = this.getRenderModel(resume);
     const children: Paragraph[] = [];
+    if (model.identity.name)
+      children.push(this.identityName(model.identity.name));
+    if (model.identity.headline)
+      children.push(this.identityHeadline(model.identity.headline));
+    if (model.identity.contactLines.length > 0) {
+      children.push(this.contact(model.identity.contactLines));
+    }
     if (resume.summary?.trim()) {
       children.push(this.heading('Summary'), this.body(resume.summary));
     }
-    for (const section of [
-      'skills',
-      'experience',
-      'education',
-      'certifications',
-      'other',
-    ] as const) {
-      const claims = resume.claims.filter((claim) => claim.section === section);
-      if (claims.length === 0) continue;
-      children.push(this.heading(this.headingFor(section)));
-      children.push(...claims.map((claim) => this.bullet(claim.text)));
+    this.addSection(children, 'Skills', model.skills);
+    if (model.experience.length > 0) {
+      children.push(this.heading('Experience'));
+      for (const entry of model.experience) {
+        if (entry.heading) children.push(this.roleHeading(entry.heading));
+        children.push(
+          ...entry.achievements.map((item) => this.bullet(item.text)),
+        );
+      }
     }
+    this.addSection(children, 'Education', model.education);
+    this.addSection(children, 'Certifications', model.certifications);
+    this.addSection(
+      children,
+      'Additional Information',
+      model.additionalInformation,
+    );
 
     return new Document({
       styles: {
@@ -124,6 +150,114 @@ export class DocumentService {
       heading: HeadingLevel.HEADING_2,
       style: 'ResumeHeading',
     });
+  }
+
+  private identityName(item: ResumeRenderItem): Paragraph {
+    return new Paragraph({
+      children: [
+        new TextRun({ text: item.text, bold: true, font: 'Arial', size: 32 }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 40 },
+    });
+  }
+
+  private identityHeadline(item: ResumeRenderItem): Paragraph {
+    return new Paragraph({
+      children: [
+        new TextRun({
+          text: item.text,
+          italics: true,
+          font: 'Arial',
+          size: 22,
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 40 },
+    });
+  }
+
+  private contact(items: readonly ResumeRenderItem[]): Paragraph {
+    return new Paragraph({
+      children: [new TextRun(items.map((item) => item.text).join(' | '))],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 160 },
+    });
+  }
+
+  private roleHeading(item: ResumeRenderItem): Paragraph {
+    return new Paragraph({
+      children: [
+        new TextRun({ text: item.text, bold: true, font: 'Arial', size: 21 }),
+      ],
+      spacing: { before: 100, after: 40 },
+    });
+  }
+
+  private addSection(
+    children: Paragraph[],
+    title: string,
+    items: readonly ResumeRenderItem[],
+  ): void {
+    if (items.length === 0) return;
+    children.push(
+      this.heading(title),
+      ...items.map((item) => this.bullet(item.text)),
+    );
+  }
+
+  private addMarkdownItems(
+    parts: string[],
+    title: string,
+    items: readonly ResumeRenderItem[],
+  ): void {
+    if (items.length === 0) return;
+    parts.push(`## ${title}`, ...items.map((item) => `- ${item.text}`));
+  }
+
+  private getRenderModel(resume: FinalResumePackage): ResumeRenderModel {
+    const model = resume.renderModel ?? buildResumeRenderModel(resume);
+    const deduplicateItems = (items: readonly ResumeRenderItem[]) => {
+      const seen = new Set<string>();
+      return items.filter((item) => {
+        const key = this.normalize(item.text);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+    const experience = model.experience
+      .map((entry) => ({
+        ...entry,
+        achievements: deduplicateItems(entry.achievements),
+      }))
+      .filter(
+        (entry, index, entries) =>
+          !entries.slice(0, index).some(
+            (previous) =>
+              this.normalize(previous.heading?.text ?? '') ===
+              this.normalize(entry.heading?.text ?? '') &&
+              previous.achievements.every((item) =>
+                entry.achievements.some(
+                  (candidate) =>
+                    this.normalize(candidate.text) === this.normalize(item.text),
+                ),
+              ),
+          ),
+      );
+    return {
+      ...model,
+      identity: {
+        ...model.identity,
+        contactLines: deduplicateItems(model.identity.contactLines),
+      },
+      summary: deduplicateItems(model.summary),
+      skills: deduplicateItems(model.skills),
+      experience,
+      education: deduplicateItems(model.education),
+      certifications: deduplicateItems(model.certifications),
+      additionalInformation: deduplicateItems(model.additionalInformation),
+    };
   }
 
   private body(text: string): Paragraph {
@@ -199,12 +333,7 @@ export class DocumentService {
     const parser = new PDFParse({ data: await readFile(pdfPath) });
     try {
       const extractedText = (await parser.getText()).text;
-      const expectedText = [
-        resume.summary,
-        ...resume.claims
-          .filter((claim) => this.isRenderedSection(claim.section))
-          .map((claim) => claim.text),
-      ]
+      const expectedText = this.renderedText(resume)
         .filter((value): value is string => Boolean(value?.trim()))
         .map((value) => this.normalize(value));
       const missing = expectedText.filter(
@@ -221,16 +350,32 @@ export class DocumentService {
   }
 
   private normalize(value: string): string {
-    return value.replace(/\s+/g, ' ').trim().toLowerCase();
+    return value
+      .replace(/([\p{L}\p{N}])[-‐‑‒–—]\s+([\p{L}\p{N}])/gu, '$1-$2')
+      .replace(/^[\s•●▪◦*-]+/, '')
+      .replace(/[‐‑‒–—]/g, '-')
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   }
 
-  private isRenderedSection(section: string): boolean {
+  private renderedText(resume: FinalResumePackage): (string | undefined)[] {
+    const model = this.getRenderModel(resume);
     return [
-      'skills',
-      'experience',
-      'education',
-      'certifications',
-      'other',
-    ].includes(section);
+      model.identity.name?.text,
+      model.identity.headline?.text,
+      ...model.identity.contactLines.map((item) => item.text),
+      resume.summary,
+      ...model.skills.map((item) => item.text),
+      ...model.experience.flatMap((entry) => [
+        entry.heading?.text,
+        ...entry.achievements.map((item) => item.text),
+      ]),
+      ...model.education.map((item) => item.text),
+      ...model.certifications.map((item) => item.text),
+      ...model.additionalInformation.map((item) => item.text),
+    ];
   }
 }

@@ -36,12 +36,35 @@ export interface ResumeSourceSegment {
     id: string;
     text: string;
     sequence: number;
+    section?: ResumeSection;
+    isHeading?: boolean;
+}
+
+export interface CanonicalResumeIdentity {
+    nameFactId?: string;
+    headlineFactId?: string;
+    contactFactIds: readonly string[];
+}
+
+export interface CanonicalResumeGroup {
+    id: string;
+    headingFactId?: string;
+    itemFactIds: readonly string[];
+}
+
+export interface CanonicalResumeStructure {
+    identity: CanonicalResumeIdentity;
+    skillGroups: readonly CanonicalResumeGroup[];
+    experienceEntries: readonly CanonicalResumeGroup[];
+    educationEntries: readonly CanonicalResumeGroup[];
+    certificationFactIds: readonly string[];
 }
 
 export interface CanonicalResumeProfile {
     resumeId: string;
     claims: readonly ResumeClaim[];
     sourceSegments: readonly ResumeSourceSegment[];
+    structure?: CanonicalResumeStructure;
     status: 'draft' | 'approved';
     approvedAt?: string;
 }
@@ -71,6 +94,35 @@ export interface ReviewRecommendationDecision {
     affectedClaimIds: readonly string[];
 }
 
+export interface ResumeRenderItem {
+    id: string;
+    text: string;
+    evidence: readonly EvidenceReference[];
+}
+
+export interface ResumeRenderIdentity {
+    name?: ResumeRenderItem;
+    headline?: ResumeRenderItem;
+    contactLines: readonly ResumeRenderItem[];
+}
+
+export interface ResumeRenderExperienceEntry {
+    id: string;
+    heading?: ResumeRenderItem;
+    achievements: readonly ResumeRenderItem[];
+}
+
+export interface ResumeRenderModel {
+    schemaVersion: '1';
+    identity: ResumeRenderIdentity;
+    summary: readonly ResumeRenderItem[];
+    skills: readonly ResumeRenderItem[];
+    experience: readonly ResumeRenderExperienceEntry[];
+    education: readonly ResumeRenderItem[];
+    certifications: readonly ResumeRenderItem[];
+    additionalInformation: readonly ResumeRenderItem[];
+}
+
 export interface FinalResumePackage {
     resumeId: string;
     summary?: string;
@@ -79,6 +131,7 @@ export interface FinalResumePackage {
     unresolvedGaps: readonly string[];
     decisions: readonly ReviewRecommendationDecision[];
     changeLog: readonly string[];
+    renderModel?: ResumeRenderModel;
 }
 
 export type ResumeVersionType = 'general' | 'targeted' | 'job-specific';
@@ -145,6 +198,191 @@ export interface TailoredResumeClaim {
     text: string;
     section: ResumeSection;
     evidence: readonly EvidenceReference[];
+}
+
+function isResumeRenderItem(value: unknown): value is ResumeRenderItem {
+    return (
+        isRecord(value) &&
+        typeof value.id === 'string' &&
+        value.id.length > 0 &&
+        typeof value.text === 'string' &&
+        value.text.trim().length > 0 &&
+        Array.isArray(value.evidence) &&
+        value.evidence.length > 0 &&
+        value.evidence.every(isEvidenceReference)
+    );
+}
+
+export function isResumeRenderModel(value: unknown): value is ResumeRenderModel {
+    if (
+        !isRecord(value) ||
+        value.schemaVersion !== '1' ||
+        !isRecord(value.identity) ||
+        !Array.isArray(value.summary) ||
+        !Array.isArray(value.skills) ||
+        !Array.isArray(value.experience) ||
+        !Array.isArray(value.education) ||
+        !Array.isArray(value.certifications) ||
+        !Array.isArray(value.additionalInformation)
+    ) {
+        return false;
+    }
+
+    const identity = value.identity;
+    const validIdentity =
+        (identity.name === undefined || isResumeRenderItem(identity.name)) &&
+        (identity.headline === undefined || isResumeRenderItem(identity.headline)) &&
+        Array.isArray(identity.contactLines) &&
+        identity.contactLines.every(isResumeRenderItem);
+    const validExperience = value.experience.every(
+        (entry) =>
+            isRecord(entry) &&
+            typeof entry.id === 'string' &&
+            entry.id.length > 0 &&
+            (entry.heading === undefined || isResumeRenderItem(entry.heading)) &&
+            Array.isArray(entry.achievements) &&
+            entry.achievements.every(isResumeRenderItem),
+    );
+
+    return (
+        validIdentity &&
+        value.summary.every(isResumeRenderItem) &&
+        value.skills.every(isResumeRenderItem) &&
+        validExperience &&
+        value.education.every(isResumeRenderItem) &&
+        value.certifications.every(isResumeRenderItem) &&
+        value.additionalInformation.every(isResumeRenderItem)
+    );
+}
+
+function renderItem(claim: TailoredResumeClaim): ResumeRenderItem {
+    return { id: claim.id, text: claim.text.trim(), evidence: claim.evidence };
+}
+
+function isSectionHeading(text: string): boolean {
+    return /^(summary|professional summary|profile|skills|technical skills|core competencies|technologies|experience|work experience|professional experience|employment|education|academic background|certifications|certificates|licenses)$/i.test(
+        text.trim(),
+    );
+}
+
+function looksLikeExperienceHeading(text: string): boolean {
+    return /\|/.test(text) && /\b(19|20)\d{2}\b|present/i.test(text);
+}
+
+function looksLikeName(text: string): boolean {
+    return /^[A-Z][A-Z .'-]{1,59}$/.test(text.trim()) && text.trim().split(/\s+/).length <= 5;
+}
+
+/** Builds the canonical export projection without changing approved claim text or evidence. */
+export function buildResumeRenderModel(
+    resume: Pick<FinalResumePackage, 'claims'>,
+    sourceStructure?: CanonicalResumeStructure,
+): ResumeRenderModel {
+    const claims = resume.claims.filter((claim) => !isSectionHeading(claim.text));
+    const contactClaims = claims.filter((claim) => claim.section === 'contact');
+    const otherClaims = claims.filter((claim) => claim.section === 'other');
+    const nameClaim = otherClaims.find((claim) => looksLikeName(claim.text));
+    const headlineClaim = nameClaim
+        ? otherClaims.find(
+            (claim) =>
+                claim.id !== nameClaim.id &&
+                claim.text.trim().length <= 100 &&
+                !/[.!?]$/.test(claim.text.trim()),
+        )
+        : undefined;
+    const identityClaimIds = new Set(
+        [nameClaim?.id, headlineClaim?.id].filter((id): id is string => Boolean(id)),
+    );
+    const bySourceFactId = new Map(
+        claims.flatMap((claim) =>
+            claim.evidence.map((reference) => [reference.sourceFactId, claim] as const),
+        ),
+    );
+    const itemForSource = (factId: string): ResumeRenderItem | undefined => {
+        const claim = bySourceFactId.get(factId);
+        return claim ? renderItem(claim) : undefined;
+    };
+    const groupedExperience = sourceStructure?.experienceEntries
+        .map((entry, index) => ({
+            id: entry.id || `experience-${index + 1}`,
+            heading: entry.headingFactId
+                ? itemForSource(entry.headingFactId)
+                : undefined,
+            achievements: entry.itemFactIds
+                .map(itemForSource)
+                .filter((item): item is ResumeRenderItem => Boolean(item)),
+        }))
+        .filter((entry) => entry.heading || entry.achievements.length > 0);
+    const experienceClaims = claims.filter((claim) => claim.section === 'experience');
+    const experience: ResumeRenderExperienceEntry[] = [];
+    let current: ResumeRenderExperienceEntry | undefined;
+    for (const claim of experienceClaims) {
+        if (!current || looksLikeExperienceHeading(claim.text)) {
+            current = {
+                id: `experience-${experience.length + 1}`,
+                ...(looksLikeExperienceHeading(claim.text)
+                    ? { heading: renderItem(claim) }
+                    : {}),
+                achievements: looksLikeExperienceHeading(claim.text)
+                    ? []
+                    : [renderItem(claim)],
+            };
+            experience.push(current);
+        } else {
+            const updated = {
+                ...current,
+                achievements: [...current.achievements, renderItem(claim)],
+            };
+            experience[experience.length - 1] = updated;
+            current = updated;
+        }
+    }
+
+    const groupedItems = (groups: readonly CanonicalResumeGroup[] | undefined) =>
+        groups
+            ?.flatMap((group) => group.itemFactIds)
+            .map(itemForSource)
+            .filter((item): item is ResumeRenderItem => Boolean(item));
+    const sourceIdentity = sourceStructure?.identity;
+
+    return {
+        schemaVersion: '1',
+        identity: {
+            ...(sourceIdentity?.nameFactId && itemForSource(sourceIdentity.nameFactId)
+                ? { name: itemForSource(sourceIdentity.nameFactId) }
+                : nameClaim
+                    ? { name: renderItem(nameClaim) }
+                    : {}),
+            ...(sourceIdentity?.headlineFactId && itemForSource(sourceIdentity.headlineFactId)
+                ? { headline: itemForSource(sourceIdentity.headlineFactId) }
+                : headlineClaim
+                    ? { headline: renderItem(headlineClaim) }
+                    : {}),
+            contactLines:
+                sourceIdentity?.contactFactIds
+                    .map(itemForSource)
+                    .filter((item): item is ResumeRenderItem => Boolean(item)) ??
+                contactClaims.map(renderItem),
+        },
+        summary: claims
+            .filter((claim) => claim.section === 'summary')
+            .map(renderItem),
+        skills:
+            groupedItems(sourceStructure?.skillGroups) ??
+            claims.filter((claim) => claim.section === 'skills').map(renderItem),
+        experience: groupedExperience?.length ? groupedExperience : experience,
+        education:
+            groupedItems(sourceStructure?.educationEntries) ??
+            claims.filter((claim) => claim.section === 'education').map(renderItem),
+        certifications:
+            sourceStructure?.certificationFactIds
+                .map(itemForSource)
+                .filter((item): item is ResumeRenderItem => Boolean(item)) ??
+            claims.filter((claim) => claim.section === 'certifications').map(renderItem),
+        additionalInformation: otherClaims
+            .filter((claim) => !identityClaimIds.has(claim.id))
+            .map(renderItem),
+    };
 }
 
 export interface TailoredResumeDraft {
@@ -322,6 +560,7 @@ export function isFinalResumePackage(value: unknown): value is FinalResumePackag
                 claim.evidence.every(isEvidenceReference),
         ) &&
         isStringArray(value.unresolvedGaps) &&
+        (value.renderModel === undefined || isResumeRenderModel(value.renderModel)) &&
         Array.isArray(value.decisions) &&
         value.decisions.every(
             (decision) =>

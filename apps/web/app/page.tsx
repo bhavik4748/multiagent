@@ -3,7 +3,8 @@
 import { FormEvent, useState } from 'react';
 
 type Evidence = { sourceFactId: string; sourceSegmentId: string };
-type Claim = { id: string; text: string; section: string; evidence: Evidence[] };
+type ResumeSection = 'contact' | 'summary' | 'skills' | 'experience' | 'education' | 'certifications' | 'other';
+type Claim = { id: string; text: string; section: ResumeSection; evidence: Evidence[] };
 type Profile = { resumeId: string; claims: Claim[]; status: 'draft' | 'approved' };
 type MatrixRow = { requirementId: string; requirement: string; strength: 'strong' | 'partial' | 'none'; action: string; evidence: Evidence[] };
 type ReviewFinding = { id: string; reviewer: 'ats' | 'readability'; severity: 'high' | 'medium' | 'low'; message: string; recommendation: string; affectedClaimIds: string[] };
@@ -65,6 +66,7 @@ export default function HomePage() {
     }
 
     function updateClaim(id: string, text: string) { setClaims((current) => current.map((claim) => claim.id === id ? { ...claim, text } : claim)); }
+    function updateClaimSection(id: string, section: ResumeSection) { setClaims((current) => current.map((claim) => claim.id === id ? { ...claim, section } : claim)); }
     function removeClaim(id: string) { setClaims((current) => current.filter((claim) => claim.id !== id)); }
 
     async function approve() {
@@ -72,7 +74,7 @@ export default function HomePage() {
         setApproving(true); setError('');
         try {
             const result = await parseResponse(await fetch(`${apiUrl}/api/resumes/${profile.resumeId}/approve`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claims: claims.map(({ id, text }) => ({ id, text })) }),
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claims: claims.map(({ id, text, section }) => ({ id, text, section })) }),
             }));
             setProfile(result); setClaims(result.claims);
         } catch (reason) { setError(reason instanceof Error ? reason.message : 'Approval failed.'); }
@@ -143,8 +145,8 @@ export default function HomePage() {
         {error && <p className="error" role="alert">{error}</p>}
         {profile && <section className="review" aria-label="Extracted resume profile">
             <div className="review-heading"><div><p className="eyebrow">Factual profile</p><h2>{profile.claims.length} source-backed claims</h2></div><span className="status"><span className="status-dot" />{profile.status === 'approved' ? 'Approved factual profile' : 'Needs your review'}</span></div>
-            <p className="review-help">Correct wording or remove claims before approval. Kept claims remain tied to original source evidence.</p>
-            <ol>{claims.map((claim) => <li key={claim.id}><div className="claim-meta"><strong>{claim.id}</strong><small>{claim.section} · Evidence: {claim.evidence[0]?.sourceSegmentId}</small></div><textarea aria-label={`Claim ${claim.id}`} value={claim.text} onChange={(event) => updateClaim(claim.id, event.target.value)} disabled={profile.status === 'approved'} />{profile.status === 'draft' && <button className="remove-claim" type="button" onClick={() => removeClaim(claim.id)}>Remove claim</button>}</li>)}</ol>
+            <p className="review-help">Correct wording, section, or remove claims before approval. Kept claims remain tied to original source evidence.</p>
+            <ol>{claims.map((claim) => <li key={claim.id}><div className="claim-meta"><strong>{claim.id}</strong><small>Evidence: {claim.evidence[0]?.sourceSegmentId}</small></div>{profile.status === 'draft' ? <label className="claim-section">Section<select value={claim.section} onChange={(event) => updateClaimSection(claim.id, event.target.value as ResumeSection)}>{(['contact', 'summary', 'skills', 'experience', 'education', 'certifications', 'other'] as const).map((section) => <option key={section} value={section}>{section}</option>)}</select></label> : <small>{claim.section}</small>}<textarea aria-label={`Claim ${claim.id}`} value={claim.text} onChange={(event) => updateClaim(claim.id, event.target.value)} disabled={profile.status === 'approved'} />{profile.status === 'draft' && <button className="remove-claim" type="button" onClick={() => removeClaim(claim.id)}>Remove claim</button>}</li>)}</ol>
             {profile.status === 'draft' && <button className="approve-button" type="button" onClick={approve} disabled={approving || claims.length === 0}>{approving ? 'Saving approval…' : 'Approve factual profile'}</button>}
         </section>}
         {profile?.status === 'approved' && <section className="tailoring" aria-label="Tailoring run">

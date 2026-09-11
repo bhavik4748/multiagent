@@ -10,12 +10,13 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ResumeIngestionService } from './resume-ingestion.service';
+import type { ResumeSection } from '@resume-tweak/contracts';
 
 @Controller('api/resumes')
 export class ResumeController {
   constructor(
     private readonly resumeIngestionService: ResumeIngestionService,
-  ) {}
+  ) { }
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
@@ -31,7 +32,8 @@ export class ResumeController {
   @Post(':resumeId/approve')
   approve(
     @Param('resumeId') resumeId: string,
-    @Body() body: { claims: { id: string; text: string }[] },
+    @Body()
+    body: { claims: { id: string; text: string; section?: ResumeSection }[] },
   ) {
     return this.resumeIngestionService.approveProfile(resumeId, body.claims);
   }

@@ -117,7 +117,7 @@ flowchart LR
 
 ## Phase B — Introduce a Structured Resume Render Model
 
-**Status:** Not started
+**Status:** Complete (2026-09-11)
 
 **Goal:** Replace flat claims as the document-generation input with a structured, validated representation that preserves normal resume hierarchy.
 
@@ -155,24 +155,37 @@ Each editable/generated item must retain canonical evidence references. The mode
 
 ### Scope
 
-1. Design a versioned shared contract for the render model and JSON schema.
-2. Decide whether the Final Resume Editor emits the render model directly or whether the backend derives it deterministically from approved final content.
-3. Preserve the existing canonical factual profile and evidence guardrails.
-4. Map current profile/claim content into the structured model incrementally, beginning with identity/contact, summary, skills, experience, education, and certifications.
-5. Preserve a machine-readable rendering order.
-6. Make the approved render model, rather than reconstructed Markdown or flat claims, the canonical export input.
-7. Clarify treatment of incomplete extracted structure from DOCX/PDF imports; retain a safe fallback representation where hierarchy cannot be inferred.
+1. Design a versioned shared contract for the render model and JSON schema. — **Completed**
+2. Decide whether the Final Resume Editor emits the render model directly or whether the backend derives it deterministically from approved final content. — **Backend-derived projection selected and implemented**
+3. Preserve the existing canonical factual profile and evidence guardrails. — **Completed**
+4. Map current profile/claim content into the structured model incrementally, beginning with identity/contact, summary, skills, experience, education, and certifications. — **Completed with persisted canonical structures**
+5. Preserve a machine-readable rendering order. — **Completed**
+6. Make the approved render model, rather than reconstructed Markdown or flat claims, the canonical export input. — **Completed for document generation**
+7. Clarify treatment of incomplete extracted structure from DOCX/PDF imports; retain a safe fallback representation where hierarchy cannot be inferred. — **Completed with contextual sections and deterministic fallback grouping**
 
 ### Acceptance criteria
 
-- [ ] A shared, schema-validated `ResumeRenderModel` contract exists.
-- [ ] The final workflow output includes a validated render model.
-- [ ] Identity/contact content is rendered in the document body when supported by approved evidence.
-- [ ] Experience supports role-level hierarchy and nested achievements.
-- [ ] Skills, education, and certifications can render in section-appropriate formats.
-- [ ] Every rendered material item has valid canonical evidence references.
-- [ ] The export no longer silently discards approved content structure.
-- [ ] Contract and transformation unit tests cover complete and partially structured resumes.
+- [x] A shared, schema-validated `ResumeRenderModel` contract exists.
+- [x] The final workflow output includes a validated render model.
+- [x] Identity/contact content is rendered in the document body when supported by approved evidence.
+- [x] Experience supports role-level hierarchy and nested achievements where recognizable role headings exist.
+- [x] Skills, education, and certifications can render in section-appropriate formats.
+- [x] Every rendered material item has valid canonical evidence references.
+- [x] The export no longer silently discards approved content structure in the supported render model.
+- [x] Contract and transformation unit tests cover complete and partially structured resumes.
+- [x] Extracted source segments persist section and heading metadata for later review and rendering.
+- [x] Canonical profiles persist reviewable identity, skill-group, experience-entry, education-entry, and certification structures.
+- [x] Users can correct a claim's section during factual-profile review; approval rebuilds canonical structures from approved claims.
+- [x] Render-model projection prefers approved canonical structures and falls back safely for incomplete/legacy profiles.
+- [x] Shared contract builds validate every JSON Schema file.
+- [x] Final candidate-facing claims and legacy render models are deduplicated by normalized section/text before export.
+
+### Phase B validation
+
+- API unit tests: **27 passed** across 8 suites.
+- API E2E tests: **10 passed** across 2 suites.
+- Shared contracts build, API build, and web build: **passed**.
+- PDF verification compares exact rendered-model content, including PDF bullet and typography normalization, so valid version exports do not fail against stale flat claims.
 
 ---
 
@@ -346,9 +359,12 @@ For every phase:
 | 2026-09-11 | E2E PDF ingestion uses a LibreOffice-generated PDF from the anonymized DOCX fixture. | The minimal hand-crafted PDF fixture was parser-compatible in isolation but PDF.js worker initialization under Jest requires VM-module support; testing a realistic generated PDF better represents supported input. | Keep `NODE_OPTIONS=--experimental-vm-modules` in the API E2E script until the PDF parser/test-runner integration is upgraded. |
 | 2026-09-11 | Version publication uses a temporary output directory plus atomic renames. | Prevents incomplete artifacts from appearing as published versions when generation or persistence fails. | Covered by `version.service.spec.ts`; Phase A complete. |
 | 2026-09-11 | Functional validation is green; repository lint still reports pre-existing unsafe test typing and async callback issues outside the Phase A service. | Phase A acceptance is behavior/build focused; existing lint debt should be handled separately rather than mixed into export reliability work. | Track separately. |
+| 2026-09-11 | Ingestion now carries active section and heading metadata onto source segments and claims. | Contextual classification keeps summaries, skills, experience, education, and certifications together and prevents role lines from being misclassified as contact data. | Extend this into explicit role/education/skill entry structures in the remaining Phase B work. |
+| 2026-09-11 | PDF verification normalizes LibreOffice discretionary line-wrap hyphenation before checking rendered content. | PDF extraction can return `service-\ndecomposition` or `high-\nthroughput`; these are the same rendered words as the approved DOCX content and must not block version creation. | Covered by unit regression and a real approved-run export. |
+| 2026-09-11 | Candidate-facing duplicate lines are removed before persistence and export. | A real tailored run contained repeated final claims and repeated legacy render-model items; this is content integrity, not a PDF layout artifact. | Guard applies to new tailoring results and legacy saved runs; Phase B complete. |
 
 ---
 
 ## 6. Immediate Next Action
 
-Begin **Phase B** by designing the schema-validated structured resume render model before changing the document template.
+Continue Phase B by adding explicit reviewable experience, education, and skill-group structures to the canonical profile, then use those structures to remove remaining heuristic grouping from export.

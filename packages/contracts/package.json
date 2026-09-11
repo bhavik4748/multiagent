@@ -11,7 +11,8 @@
         }
     },
     "scripts": {
-        "build": "tsc -p tsconfig.json"
+        "check": "node ./scripts/check-schemas.mjs",
+        "build": "pnpm run check && tsc -p tsconfig.json"
     },
     "devDependencies": {
         "typescript": "^5.7.3"

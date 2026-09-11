@@ -235,6 +235,11 @@ describe('Phase 2 tailoring API (e2e)', () => {
     expect(run.body.tailoredDraft.claims[0].evidence).toEqual(
       approval.body.claims[0].evidence,
     );
+    expect(run.body.finalResume.renderModel).toMatchObject({
+      schemaVersion: '1',
+      identity: { contactLines: expect.any(Array) },
+      experience: expect.any(Array),
+    });
     expect(run.body.evidenceMatrix.rows[1]).toMatchObject({
       strength: 'none',
       action: 'flag-gap',

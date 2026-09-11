@@ -7,7 +7,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import {
+  buildResumeRenderModel,
   hasInvalidEvidenceReferences,
+  isResumeRenderModel,
   type TailoringRequest,
   type TailoringRunResult,
 } from '@resume-tweak/contracts';
@@ -28,7 +30,7 @@ export class TailoringService {
     private readonly agents: TailoringAgentsService,
     private readonly modelConfig: ModelConfigService,
     private readonly versions: VersionService,
-  ) {}
+  ) { }
 
   async createRun(
     resumeId: string,
@@ -87,12 +89,28 @@ export class TailoringService {
         readabilityReview,
         gaps,
       );
-      const finalResume = this.normalizeFinalResume(
+      const normalizedFinalResume = this.normalizeFinalResume(
         editorResult,
         atsReview,
         readabilityReview,
         gaps,
       );
+      const finalClaims = this.deduplicateClaims(normalizedFinalResume.claims);
+      const finalResume = {
+        ...normalizedFinalResume,
+        claims: finalClaims,
+        changeLog:
+          finalClaims.length === normalizedFinalResume.claims.length
+            ? normalizedFinalResume.changeLog
+            : [
+              ...normalizedFinalResume.changeLog,
+              'Removed repeated candidate-facing content while preserving the first evidence-backed claim.',
+            ],
+        renderModel: buildResumeRenderModel(
+          { ...normalizedFinalResume, claims: finalClaims },
+          profile.structure,
+        ),
+      };
       this.validateFinalResume(
         profile,
         resumeId,
@@ -289,6 +307,14 @@ export class TailoringService {
       );
     }
     if (
+      !finalResume.renderModel ||
+      !isResumeRenderModel(finalResume.renderModel)
+    ) {
+      throw new BadRequestException(
+        'The final resume render model is invalid.',
+      );
+    }
+    if (
       finalResume.decisions.length !== findingIds.size ||
       new Set(finalResume.decisions.map((decision) => decision.findingId))
         .size !== findingIds.size ||
@@ -340,15 +366,35 @@ export class TailoringService {
         return decision
           ? { ...decision, affectedClaimIds: finding.affectedClaimIds }
           : {
-              findingId: finding.id,
-              decision: 'unresolved',
-              rationale:
-                'The final editor did not return a decision; this finding remains for user review.',
-              affectedClaimIds: finding.affectedClaimIds,
-            };
+            findingId: finding.id,
+            decision: 'unresolved',
+            rationale:
+              'The final editor did not return a decision; this finding remains for user review.',
+            affectedClaimIds: finding.affectedClaimIds,
+          };
       }),
       unresolvedGaps: [...new Set([...finalResume.unresolvedGaps, ...gaps])],
     };
+  }
+
+  private deduplicateClaims(
+    claims: readonly import('@resume-tweak/contracts').TailoredResumeClaim[],
+  ): import('@resume-tweak/contracts').TailoredResumeClaim[] {
+    const seen = new Set<string>();
+    return claims.filter((claim) => {
+      const key = `${claim.section}:${this.normalizeClaimText(claim.text)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  private normalizeClaimText(value: string): string {
+    return value
+      .toLocaleLowerCase()
+      .replace(/[‐‑‒–—]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private async persist(result: TailoringRunResult) {
