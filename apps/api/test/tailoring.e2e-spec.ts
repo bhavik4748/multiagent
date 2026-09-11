@@ -258,6 +258,50 @@ describe('Phase 2 tailoring API (e2e)', () => {
       approvalStatus: 'approved',
       approvalNote: 'Content reviewed.',
     });
+
+    const version = await request(app.getHttpServer())
+      .post(`/api/tailoring-runs/${run.body.runId}/versions`)
+      .send({ versionType: 'job-specific', company: 'Example Company' })
+      .expect(201);
+    expect(version.body.version).toMatchObject({
+      versionType: 'job-specific',
+      company: 'Example Company',
+      sourceResumeId: approval.body.resumeId,
+    });
+
+    const versionId = version.body.version.versionId;
+    await request(app.getHttpServer())
+      .get('/api/resume-versions')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual(
+          expect.arrayContaining([expect.objectContaining({ versionId })]),
+        );
+      });
+    await request(app.getHttpServer())
+      .get(`/api/resume-versions/${versionId}/source-profile`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          resumeId: approval.body.resumeId,
+        });
+      });
+    await request(app.getHttpServer())
+      .get(`/api/resume-versions/${versionId}/download/docx`)
+      .expect(200)
+      .expect('Content-Type', /application\/vnd.openxmlformats-officedocument/);
+    await request(app.getHttpServer())
+      .get(`/api/resume-versions/${versionId}/download/pdf`)
+      .expect(200)
+      .expect('Content-Type', /application\/pdf/);
+    await request(app.getHttpServer())
+      .get(`/api/resume-versions/${versionId}/download/text`)
+      .expect(400)
+      .expect((response) => {
+        expect(response.body.message).toBe(
+          'Download format must be docx or pdf.',
+        );
+      });
   });
 
   it('creates a separate run when the user revises the job description', async () => {

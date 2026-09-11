@@ -15,9 +15,9 @@ This document is the implementation reference for the application.
 
 ## Implementation Status
 
-**Current phase: Phase 3 — Quality Review and Approval complete**
+**Current phase: Phase 4 — Document Generation and Version Management partially complete**
 
-**Status as of 2026-09-10: Phase 3 quality review and approval complete**
+**Status as of 2026-09-10: Phase 3 is complete; Phase 4 export and basic version-management capabilities are implemented, with verification, test coverage, and UI refinements pending.**
 
 The foundation work, DOCX-first Phase 1 exit slice, and Phase 2 initial tailoring
 workflow are complete. The application can create a source-backed tailoring draft
@@ -51,6 +51,10 @@ from an approved canonical profile and a pasted job description.
 - ATS Compatibility Reviewer and Recruiter Readability Reviewer stages executed in parallel
 - Final Resume Editor stage with evidence validation, reviewer-decision rationale, change log, and preserved gaps
 - explicit final-content approval endpoint and browser control; approval records no generated document artifacts until Phase 4
+- ATS-safe single-column DOCX generation from approved final content
+- LibreOffice-based PDF rendering from the generated DOCX and PDF text verification
+- approved-version creation endpoint, local artifact persistence, metadata, review-report, change-log, and manifest updates
+- version list, DOCX/PDF download endpoints, basic version browser, and factual-profile reuse from saved versions
 
 ### Validated work
 
@@ -64,16 +68,16 @@ from an approved canonical profile and a pasted job description.
 - Phase 2 unit suite passes: 9 tests.
 - Combined API HTTP end-to-end suites pass: 8 tests.
 - The opt-in live Foundry smoke test passes with `gpt-5.6-terra`.
+- Focused PDF verification regression tests and the NestJS API build pass after the contact/draft-claim validation fix.
 
 ### Deferred Phase 1 enhancements
 
 The following items are intentionally deferred and do **not** block Phase 2,
 which will consume the approved DOCX-first canonical profile:
 
-- text-based PDF extraction
-- OCR abstraction and mandatory validation for scanned PDFs
+- text-based PDF ingestion with native local text extraction, review, approval, and HTTP API coverage
 - richer section-specific parsing beyond deterministic heading classification
-- complete source/version manifest structure for later version-management phases
+- complete Phase 4 document/version API coverage and structural artifact validation
 
 ---
 
@@ -86,6 +90,81 @@ and HTTP end-to-end coverage.
 **Phase 2 result:** tailoring accepts only a profile whose `status` is `approved`.
 It persists the run locally, exposes the job profile, evidence matrix, gaps, and
 draft for review, and prevents unreferenced evidence from reaching the draft.
+
+### Text-Based PDF Ingestion Plan
+
+**Scope:** Add support only for PDFs containing an embedded, selectable text layer.
+Scanned/image-only PDFs, OCR, handwritten content, and password-protected PDFs are
+explicitly out of scope for this increment and must return a clear validation error.
+
+**Status: Implemented initial slice (2026-09-10).** The upload API and browser
+file picker accept DOCX and text-based PDFs. The API validates the PDF signature,
+extracts native text locally using `pdf-parse`, creates the existing canonical
+profile/evidence structure, requires the same user approval, and preserves the
+existing tailoring/export pipeline. HTTP coverage verifies valid PDF upload and
+approval plus invalid-signature rejection.
+
+**Design principle:** A supported PDF is another input format for the existing
+canonical factual-profile workflow. It must not create a separate tailoring path.
+After user review and approval, PDF-derived profiles use the same evidence matrix,
+review, approval, DOCX-first export, and version-management stages as DOCX-derived
+profiles.
+
+#### Planned implementation
+
+1. **Accept and identify PDFs at the upload boundary** — implemented
+   - Extend `POST /api/resumes/upload` and the browser file picker to accept `.pdf`.
+   - Retain the current 10 MB file-size limit initially.
+   - Validate the PDF signature (`%PDF-`) as well as the declared MIME type and file
+     extension; do not trust a browser-supplied MIME type by itself.
+   - Persist the original as `data/base/<resume-id>/source.pdf`.
+
+2. **Extract native PDF text locally** — implemented for parser-readable PDFs
+   - Use the existing server-side `pdf-parse` dependency in a dedicated PDF
+     extraction path.
+   - Extract text page by page where the parser exposes page boundaries, normalize
+     line endings and blank lines, and split readable text into deterministic source
+     segments.
+   - Reject PDFs with no meaningful native text instead of attempting OCR.
+   - Do not send the original PDF or raw extracted text to a browser log, application
+     log, or a third-party extraction service.
+
+3. **Preserve factual provenance** — implemented using the existing stable claim
+  and source-segment ID model. Per-page source metadata remains future refinement.
+   - Extend source-segment metadata with optional `sourceFormat: 'docx' | 'pdf'` and
+     `pageNumber` fields without changing existing claim/evidence IDs.
+   - Generate `segment-####` and `fact-####` IDs deterministically from the extracted
+     PDF sequence, then retain the existing claim-to-source evidence links.
+   - Continue to require user edits/removals and explicit factual-profile approval
+     before any tailoring run can use the profile.
+
+4. **Handle unsupported PDFs predictably** — implemented for invalid signatures and
+  parser failures; dedicated encrypted/image-only fixtures remain pending.
+   - Return `400` for corrupt, encrypted/password-protected, or image-only PDFs.
+   - Use user-facing messages such as “This PDF has no selectable text. Upload a
+     text-based PDF or DOCX instead.”
+   - Do not add OCR fallback, AI-based transcription, or extraction retries in this
+     scope.
+
+5. **Test the full input-to-export path** — initial upload/approval coverage is
+  implemented; tailoring and export coverage from a PDF-derived profile remains pending.
+   - Add anonymized fixtures for a valid text-based PDF, an image-only PDF, a corrupt
+     PDF, and an encrypted PDF where feasible.
+   - Add unit tests for format detection, native-text extraction, empty-text
+     rejection, segment ordering, and section classification.
+   - Add HTTP end-to-end coverage for PDF upload, factual-profile approval, tailoring
+     from that approved profile, and DOCX/PDF version export.
+   - Assert page/source references remain intact from the PDF-derived factual claim
+     through the tailored output.
+
+#### Acceptance criteria
+
+- A user can upload a valid text-based PDF and review its extracted factual claims.
+- An approved PDF-derived profile can create a tailoring run and final DOCX/PDF
+  version without bypassing evidence guardrails.
+- Image-only, corrupt, and encrypted PDFs fail with a clear `400` response and do
+  not create a usable resume profile.
+- The original PDF and canonical profile remain local and retain source provenance.
 
 ---
 
@@ -314,7 +393,7 @@ flowchart LR
 
 1. User uploads a base DOCX or PDF resume.
 2. The application extracts content and identifies resume sections.
-3. User reviews/corrects extraction if required, especially for scanned PDFs.
+3. User reviews/corrects extracted claims before the factual profile can be approved.
 4. The application stores a canonical factual profile.
 5. User pastes a job description, selects the base/general/targeted resume to use, and may enter optional tailoring instructions.
 6. The orchestration workflow generates a tailored draft and review results.
@@ -530,8 +609,8 @@ flowchart LR
 | Format | Handling | User review requirement |
 |---|---|---|
 | DOCX | Extract paragraphs, headings, lists, and basic structure. Preferred input format. | Recommended |
-| Text-based PDF | Extract text then classify sections. | Required before first use |
-| Scanned PDF | OCR, followed by extraction confidence indicators. | Mandatory |
+| Text-based PDF | Extract native selectable text locally, then classify sections. | Required before first use |
+| Scanned/image-only, encrypted, or corrupt PDF | Reject with a clear upload error; OCR is not supported in this release. | N/A |
 
 ### 8.2 Canonical profile
 
@@ -719,7 +798,7 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 - Resume upload UI.
 - DOCX extractor.
 - Text-based PDF extractor.
-- OCR pipeline abstraction for scanned PDFs.
+- Explicit rejection of scanned/image-only, encrypted, and corrupt PDFs; OCR is out of scope.
 - Resume-section classifier and canonical JSON profile generator.
 - Extraction review screen allowing the user to correct parsed data before it is used.
 - Local file storage and source/version manifests.
@@ -743,8 +822,8 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 **Deferred acceptance criteria**
 
-- [ ] User can upload a text PDF and review extracted content. Deferred beyond DOCX-first scope.
-- [ ] Scanned PDFs are marked as requiring validation. Deferred with OCR support.
+- [ ] User can upload a text-based PDF and review extracted content. Planned next; see **Text-Based PDF Ingestion Plan**.
+- [ ] Scanned/image-only PDFs are detected and rejected with a clear upload error. Planned with text-based PDF support; OCR remains out of scope.
 
 ### Phase 2 — Initial Tailoring Workflow
 
@@ -807,23 +886,35 @@ Agent execution receives a server-resolved `modelProfileId`; browser requests mu
 
 ### Phase 4 — DOCX/PDF Generation and Version Management
 
+**Status: Partially complete (2026-09-10)**
+
 **Objective:** Produce high-quality downloadable files and preserve reusable versions.
 
-**Deliverables**
+**Implemented deliverables**
 
-- ATS-safe DOCX generation from approved structured content.
-- PDF rendering from the generated DOCX.
-- Document preview/download UI.
-- Version Manager sub-agent or deterministic version service.
-- General, targeted, and job-specific version browser.
-- Local version manifest, metadata, and change-log persistence.
+- [x] ATS-safe DOCX generation from approved structured content.
+- [x] PDF rendering from the generated DOCX.
+- [x] Document download UI and DOCX/PDF download endpoints.
+- [x] Deterministic version service.
+- [x] Basic saved-version browser and factual-profile reuse.
+- [x] Local version manifest, metadata, review-report, Markdown-content, and change-log persistence.
+
+**Remaining deliverables**
+
+- [ ] Add DOCX text extraction and content verification alongside the existing PDF verification.
+- [ ] Add automated structural checks for no tables, columns, text boxes, or essential header/footer content.
+- [ ] Add version-service and HTTP end-to-end tests for creation, listing, download, source selection, validation failures, and all version types.
+- [ ] Clean up incomplete artifact directories if generation or metadata persistence fails.
+- [ ] Return a clear `404` when a registered artifact is missing from disk.
+- [ ] Add UI controls for `general`, `targeted` (including track), and `job-specific` (including company) version creation; the current UI creates job-specific versions only.
+- [ ] Decide and document whether “use saved version as source” means the existing factual-profile reuse or a future tailored-content source mode.
 
 **Acceptance criteria**
 
-- An approved resume downloads as a DOCX and PDF with matching text.
-- Generated ATS documents have no tables, columns, text boxes, or key content in headers/footers.
-- User can select a saved general/targeted version as a future tailoring source.
-- Files are stored in the specified version layout with metadata.
+- [~] An approved resume downloads as a DOCX and PDF with matching text. PDF verification is implemented; DOCX text verification remains pending.
+- [~] Generated ATS documents have no tables, columns, text boxes, or key content in headers/footers. The generator is designed this way; automated structural verification remains pending.
+- [~] User can select a saved general/targeted version as a future tailoring source. The API/UI reuses its approved factual profile; enhanced tailored-content source selection remains a product decision.
+- [x] Files are stored in the specified version layout with metadata.
 
 ### Phase 5 — Evaluation, Safety, and Operational Readiness
 
@@ -912,7 +1003,7 @@ Use anonymized fixture pairs to test:
 | Risk | Mitigation |
 |---|---|
 | Hallucinated qualifications | Canonical profile, evidence IDs, schema validation, final factual-consistency gate |
-| Poor PDF extraction | Prefer DOCX; require extraction review; use OCR only with confirmation |
+| Poor PDF extraction | Prefer DOCX; require extraction review; accept only PDFs with usable native selectable text and reject unsupported PDFs |
 | ATS parsing issues | Use a strict single-column DOCX template and a dedicated ATS reviewer |
 | Inconsistent sub-agent output | JSON schemas, validation, retries, and deterministic orchestration |
 | Unhelpful keyword stuffing | Readability reviewer and keyword-density checks |
@@ -950,4 +1041,4 @@ Start with a thin vertical slice rather than building every agent at once:
 6. Require approval.
 7. Generate one ATS-safe DOCX and PDF.
 
-Then add the review agents, PDF/OCR input support, version tracks, and evaluation capabilities in the listed phases.
+Then add the review agents, text-based PDF input support, version tracks, and evaluation capabilities in the listed phases. OCR remains out of scope.

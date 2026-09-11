@@ -201,7 +201,9 @@ export class DocumentService {
       const extractedText = (await parser.getText()).text;
       const expectedText = [
         resume.summary,
-        ...resume.claims.map((claim) => claim.text),
+        ...resume.claims
+          .filter((claim) => this.isRenderedSection(claim.section))
+          .map((claim) => claim.text),
       ]
         .filter((value): value is string => Boolean(value?.trim()))
         .map((value) => this.normalize(value));
@@ -220,5 +222,15 @@ export class DocumentService {
 
   private normalize(value: string): string {
     return value.replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  private isRenderedSection(section: string): boolean {
+    return [
+      'skills',
+      'experience',
+      'education',
+      'certifications',
+      'other',
+    ].includes(section);
   }
 }

@@ -28,7 +28,7 @@ export class TailoringService {
     private readonly agents: TailoringAgentsService,
     private readonly modelConfig: ModelConfigService,
     private readonly versions: VersionService,
-  ) { }
+  ) {}
 
   async createRun(
     resumeId: string,
@@ -340,12 +340,12 @@ export class TailoringService {
         return decision
           ? { ...decision, affectedClaimIds: finding.affectedClaimIds }
           : {
-            findingId: finding.id,
-            decision: 'unresolved',
-            rationale:
-              'The final editor did not return a decision; this finding remains for user review.',
-            affectedClaimIds: finding.affectedClaimIds,
-          };
+              findingId: finding.id,
+              decision: 'unresolved',
+              rationale:
+                'The final editor did not return a decision; this finding remains for user review.',
+              affectedClaimIds: finding.affectedClaimIds,
+            };
       }),
       unresolvedGaps: [...new Set([...finalResume.unresolvedGaps, ...gaps])],
     };

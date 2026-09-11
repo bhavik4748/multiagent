@@ -3,9 +3,35 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { AppModule } from './../src/app.module';
+
+const execFileAsync = promisify(execFile);
+
+async function createTextPdfFixture(): Promise<Buffer> {
+  const directory = await mkdtemp(join(tmpdir(), 'resume-tweak-pdf-'));
+  const sourceDocx = resolve(
+    __dirname,
+    '../../../data/fixtures/anonymized-resume.docx',
+  );
+  try {
+    await execFileAsync('soffice', [
+      '--headless',
+      '--convert-to',
+      'pdf:writer_pdf_Export',
+      '--outdir',
+      directory,
+      sourceDocx,
+    ]);
+    return await readFile(join(directory, 'anonymized-resume.pdf'));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
 
 describe('Phase 0 API (e2e)', () => {
   let app: INestApplication<App>;
@@ -106,6 +132,70 @@ describe('Phase 0 API (e2e)', () => {
       .expect((response) => {
         expect(response.body.message).toBe(
           'The uploaded file is not a readable DOCX.',
+        );
+      });
+  });
+
+  it('uploads, retrieves, and approves a source-backed text-based PDF profile', async () => {
+    const fixture = await createTextPdfFixture();
+    const upload = await request(app.getHttpServer())
+      .post('/api/resumes/upload')
+      .attach('file', fixture, {
+        filename: 'anonymized-resume.pdf',
+        contentType: 'application/pdf',
+      });
+
+    if (upload.status !== 201) throw new Error(String(upload.body.message));
+
+    expect(upload.body).toMatchObject({ status: 'draft' });
+    expect(upload.body.claims).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: 'Professional Summary',
+          section: 'summary',
+        }),
+        expect.objectContaining({
+          text: 'Technical Skills',
+          section: 'skills',
+        }),
+      ]),
+    );
+
+    const retrieved = await request(app.getHttpServer())
+      .get(`/api/resumes/${upload.body.resumeId}/profile`)
+      .expect(200);
+    expect(retrieved.body).toMatchObject({
+      resumeId: upload.body.resumeId,
+      status: 'draft',
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/resumes/${upload.body.resumeId}/approve`)
+      .send({
+        claims: upload.body.claims.map(
+          (claim: { id: string; text: string }) => ({
+            id: claim.id,
+            text: claim.text,
+          }),
+        ),
+      })
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.status).toBe('approved');
+      });
+  });
+
+  it('rejects a PDF without a valid PDF signature', () => {
+    return request(app.getHttpServer())
+      .post('/api/resumes/upload')
+      .attach('file', Buffer.from('not a PDF'), {
+        filename: 'invalid.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body.message).toBe(
+          'The uploaded file is not a readable PDF.',
         );
       });
   });

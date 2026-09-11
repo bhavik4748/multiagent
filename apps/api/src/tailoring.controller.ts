@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -125,9 +126,12 @@ export class TailoringController {
   })
   async download(
     @Param('versionId') versionId: string,
-    @Param('format') format: 'docx' | 'pdf',
+    @Param('format') format: string,
     @Res() response: Response,
   ) {
+    if (format !== 'docx' && format !== 'pdf') {
+      throw new BadRequestException('Download format must be docx or pdf.');
+    }
     const artifact = await this.versions.getArtifact(versionId, format);
     return response.download(artifact.path, artifact.filename);
   }

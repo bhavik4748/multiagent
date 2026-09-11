@@ -3,9 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import {
+  access,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  rmdir,
+  writeFile,
+} from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import type {
   ResumeVersionArtifacts,
   ResumeVersionMetadata,
@@ -21,8 +29,9 @@ export class VersionService {
     __dirname,
     '../../../data/manifests/resume-versions.json',
   );
+  private manifestWrite: Promise<void> = Promise.resolve();
 
-  constructor(private readonly documents: DocumentService) {}
+  constructor(private readonly documents: DocumentService) { }
 
   async createApprovedVersion(
     run: TailoringRunResult,
@@ -47,74 +56,76 @@ export class VersionService {
       date,
       versionId,
     );
-    const artifacts = await this.documents.createArtifacts(
-      outputDirectory,
-      'resume',
-      run.finalResume,
-    );
-    const relativeArtifacts = this.relativeArtifacts(
-      artifacts,
-      outputDirectory,
-    );
-    const metadata: ResumeVersionMetadata = {
-      versionId,
-      versionType: options.versionType,
-      track: options.track?.trim() || undefined,
-      sourceResumeId: run.resumeId,
-      tailoringRunId: run.runId,
-      targetRole: run.jobProfile.targetRole,
-      company: options.company?.trim() || undefined,
-      createdAt,
-      jobDescriptionHash: this.documents.hashText(
-        JSON.stringify(run.jobProfile),
-      ),
-      modelProfileId: run.modelProfileId,
-      deployment: run.deployment,
-      includedKeywords: run.jobProfile.keywords,
-      unresolvedGaps: run.finalResume.unresolvedGaps,
-      artifacts: relativeArtifacts,
-      approvedAt: run.approvedAt,
-    };
-    await mkdir(outputDirectory, { recursive: true });
-    await Promise.all([
-      writeFile(
-        join(outputDirectory, relativeArtifacts.contentPath),
-        artifacts.markdown,
-        'utf8',
-      ),
-      writeFile(
-        join(outputDirectory, relativeArtifacts.changeLogPath),
-        run.finalResume.changeLog.join('\n'),
-        'utf8',
-      ),
-      writeFile(
-        join(outputDirectory, relativeArtifacts.reviewReportPath),
-        JSON.stringify(
-          {
-            ats: run.atsReview,
-            readability: run.readabilityReview,
-            decisions: run.finalResume.decisions,
-          },
-          null,
-          2,
+    const temporaryDirectory = `${outputDirectory}.tmp-${randomUUID()}`;
+    try {
+      const artifacts = await this.documents.createArtifacts(
+        temporaryDirectory,
+        'resume',
+        run.finalResume,
+      );
+      const relativeArtifacts = this.relativeArtifacts(artifacts);
+      const metadata: ResumeVersionMetadata = {
+        versionId,
+        versionType: options.versionType,
+        track: options.track?.trim() || undefined,
+        sourceResumeId: run.resumeId,
+        tailoringRunId: run.runId,
+        targetRole: run.jobProfile.targetRole,
+        company: options.company?.trim() || undefined,
+        createdAt,
+        jobDescriptionHash: this.documents.hashText(
+          JSON.stringify(run.jobProfile),
         ),
-        'utf8',
-      ),
-      writeFile(
-        join(outputDirectory, relativeArtifacts.metadataPath),
-        JSON.stringify(metadata, null, 2),
-        'utf8',
-      ),
-    ]);
-    const manifest = await this.getManifest();
-    manifest.unshift(metadata);
-    await mkdir(resolve(this.manifestPath, '..'), { recursive: true });
-    await writeFile(
-      this.manifestPath,
-      JSON.stringify(manifest, null, 2),
-      'utf8',
-    );
-    return metadata;
+        modelProfileId: run.modelProfileId,
+        deployment: run.deployment,
+        includedKeywords: run.jobProfile.keywords,
+        unresolvedGaps: run.finalResume.unresolvedGaps,
+        artifacts: relativeArtifacts,
+        approvedAt: run.approvedAt,
+      };
+      if (!this.isValidMetadata(metadata)) {
+        throw new BadRequestException('Generated version metadata is invalid.');
+      }
+      await Promise.all([
+        writeFile(
+          join(temporaryDirectory, relativeArtifacts.contentPath),
+          artifacts.markdown,
+          'utf8',
+        ),
+        writeFile(
+          join(temporaryDirectory, relativeArtifacts.changeLogPath),
+          run.finalResume.changeLog.join('\n'),
+          'utf8',
+        ),
+        writeFile(
+          join(temporaryDirectory, relativeArtifacts.reviewReportPath),
+          JSON.stringify(
+            {
+              ats: run.atsReview,
+              readability: run.readabilityReview,
+              decisions: run.finalResume.decisions,
+            },
+            null,
+            2,
+          ),
+          'utf8',
+        ),
+        writeFile(
+          join(temporaryDirectory, relativeArtifacts.metadataPath),
+          JSON.stringify(metadata, null, 2),
+          'utf8',
+        ),
+      ]);
+      await mkdir(resolve(outputDirectory, '..'), { recursive: true });
+      await rename(temporaryDirectory, outputDirectory);
+      await this.updateManifest(metadata);
+      return metadata;
+    } catch (error) {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+      await rm(outputDirectory, { recursive: true, force: true });
+      await this.removeEmptyParents(resolve(outputDirectory, '..'));
+      throw error;
+    }
   }
 
   async listVersions(): Promise<ResumeVersionMetadata[]> {
@@ -143,6 +154,11 @@ export class VersionService {
     const path = resolve(directory, relativePath);
     if (!path.startsWith(directory))
       throw new NotFoundException('Version artifact was not found.');
+    try {
+      await access(path);
+    } catch {
+      throw new NotFoundException('Version artifact was not found.');
+    }
     return {
       path,
       filename: `${this.slugify(version.targetRole) || 'resume'}-${version.createdAt.slice(0, 10)}.${kind}`,
@@ -161,11 +177,44 @@ export class VersionService {
 
   private async getManifest(): Promise<ResumeVersionMetadata[]> {
     try {
-      return JSON.parse(
+      const manifest = JSON.parse(
         await readFile(this.manifestPath, 'utf8'),
       ) as ResumeVersionMetadata[];
-    } catch {
-      return [];
+      if (
+        !Array.isArray(manifest) ||
+        !manifest.every((entry) => this.isValidMetadata(entry))
+      ) {
+        throw new Error('The version manifest contains invalid metadata.');
+      }
+      return manifest;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw new BadRequestException(
+        'The version manifest is unavailable or invalid and was not modified.',
+      );
+    }
+  }
+
+  private async updateManifest(metadata: ResumeVersionMetadata): Promise<void> {
+    const previousWrite = this.manifestWrite;
+    let release!: () => void;
+    this.manifestWrite = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previousWrite;
+    try {
+      const manifest = await this.getManifest();
+      manifest.unshift(metadata);
+      await mkdir(resolve(this.manifestPath, '..'), { recursive: true });
+      const temporaryManifest = `${this.manifestPath}.tmp-${randomUUID()}`;
+      await writeFile(
+        temporaryManifest,
+        JSON.stringify(manifest, null, 2),
+        'utf8',
+      );
+      await rename(temporaryManifest, this.manifestPath);
+    } finally {
+      release();
     }
   }
 
@@ -209,10 +258,10 @@ export class VersionService {
     );
   }
 
-  private relativeArtifacts(
-    artifacts: { docxPath: string; pdfPath: string },
-    outputDirectory: string,
-  ): ResumeVersionArtifacts {
+  private relativeArtifacts(artifacts: {
+    docxPath: string;
+    pdfPath: string;
+  }): ResumeVersionArtifacts {
     return {
       docxPath: basename(artifacts.docxPath),
       pdfPath: basename(artifacts.pdfPath),
@@ -228,5 +277,50 @@ export class VersionService {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
+  }
+
+  private isValidMetadata(value: unknown): value is ResumeVersionMetadata {
+    if (!value || typeof value !== 'object') return false;
+    const metadata = value as Partial<ResumeVersionMetadata>;
+    return (
+      typeof metadata.versionId === 'string' &&
+      ['general', 'targeted', 'job-specific'].includes(
+        metadata.versionType ?? '',
+      ) &&
+      typeof metadata.sourceResumeId === 'string' &&
+      typeof metadata.tailoringRunId === 'string' &&
+      typeof metadata.targetRole === 'string' &&
+      typeof metadata.createdAt === 'string' &&
+      typeof metadata.jobDescriptionHash === 'string' &&
+      typeof metadata.modelProfileId === 'string' &&
+      typeof metadata.deployment === 'string' &&
+      Array.isArray(metadata.includedKeywords) &&
+      Array.isArray(metadata.unresolvedGaps) &&
+      typeof metadata.approvedAt === 'string' &&
+      Boolean(
+        metadata.artifacts &&
+        typeof metadata.artifacts.docxPath === 'string' &&
+        typeof metadata.artifacts.pdfPath === 'string' &&
+        typeof metadata.artifacts.contentPath === 'string' &&
+        typeof metadata.artifacts.metadataPath === 'string' &&
+        typeof metadata.artifacts.changeLogPath === 'string' &&
+        typeof metadata.artifacts.reviewReportPath === 'string',
+      )
+    );
+  }
+
+  private async removeEmptyParents(directory: string): Promise<void> {
+    let current = directory;
+    while (
+      current !== this.versionsRoot &&
+      current.startsWith(`${this.versionsRoot}${sep}`)
+    ) {
+      try {
+        await rmdir(current);
+      } catch {
+        return;
+      }
+      current = resolve(current, '..');
+    }
   }
 }

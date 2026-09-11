@@ -20,7 +20,7 @@ export class ResumeController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   upload(@UploadedFile() file: Express.Multer.File) {
-    return this.resumeIngestionService.ingestDocx(file);
+    return this.resumeIngestionService.ingest(file);
   }
 
   @Get(':resumeId/profile')

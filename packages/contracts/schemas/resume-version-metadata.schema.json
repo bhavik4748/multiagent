@@ -8,9 +8,16 @@
         "versionId",
         "versionType",
         "sourceResumeId",
+        "tailoringRunId",
+        "targetRole",
         "createdAt",
+        "jobDescriptionHash",
         "modelProfileId",
-        "deployment"
+        "deployment",
+        "includedKeywords",
+        "unresolvedGaps",
+        "artifacts",
+        "approvedAt"
     ],
     "properties": {
         "versionId": {
@@ -28,6 +35,10 @@
             "type": "string"
         },
         "sourceResumeId": {
+            "type": "string",
+            "minLength": 1
+        },
+        "tailoringRunId": {
             "type": "string",
             "minLength": 1
         },
@@ -64,10 +75,42 @@
                 "type": "string"
             }
         },
-        "outputArtifactPaths": {
-            "type": "array",
-            "items": {
-                "type": "string"
+        "artifacts": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "docxPath",
+                "pdfPath",
+                "contentPath",
+                "metadataPath",
+                "changeLogPath",
+                "reviewReportPath"
+            ],
+            "properties": {
+                "docxPath": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "pdfPath": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "contentPath": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "metadataPath": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "changeLogPath": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "reviewReportPath": {
+                    "type": "string",
+                    "minLength": 1
+                }
             }
         },
         "approvedAt": {

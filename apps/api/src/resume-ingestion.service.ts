@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { extractRawText } from 'mammoth';
+import { PDFParse } from 'pdf-parse';
 import type {
   CanonicalResumeProfile,
   ResumeClaim,
@@ -19,34 +20,75 @@ const DOCX_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/octet-stream',
 ]);
+const PDF_MIME_TYPES = new Set(['application/pdf', 'application/octet-stream']);
 
 @Injectable()
 export class ResumeIngestionService {
   private readonly dataRoot = resolve(__dirname, '../../../data');
 
-  async ingestDocx(file: Express.Multer.File): Promise<CanonicalResumeProfile> {
-    this.validateDocx(file);
+  async ingest(file: Express.Multer.File): Promise<CanonicalResumeProfile> {
+    this.validateUpload(file);
+    const isPdf = this.isPdf(file);
+    const paragraphs = isPdf
+      ? await this.extractPdfParagraphs(file.buffer)
+      : await this.extractDocxParagraphs(file.buffer);
 
-    const resumeId = `resume-${randomUUID()}`;
-    const resumeDirectory = join(this.dataRoot, 'base', resumeId);
-    const sourcePath = join(resumeDirectory, 'source.docx');
-    const profilePath = join(resumeDirectory, 'canonical-resume.json');
+    return this.persistProfile(file, paragraphs, isPdf ? 'pdf' : 'docx');
+  }
+
+  private async extractDocxParagraphs(buffer: Buffer): Promise<string[]> {
     let extraction: Awaited<ReturnType<typeof extractRawText>>;
     try {
-      extraction = await extractRawText({ buffer: file.buffer });
+      extraction = await extractRawText({ buffer });
     } catch {
       throw new BadRequestException(
         'The uploaded file is not a readable DOCX.',
       );
     }
-    const paragraphs = extraction.value
-      .split(/\r?\n/)
-      .map((paragraph) => paragraph.trim())
+    return this.toParagraphs(
+      extraction.value,
+      'The DOCX contains no extractable text.',
+    );
+  }
+
+  private async extractPdfParagraphs(buffer: Buffer): Promise<string[]> {
+    const parser = new PDFParse({ data: buffer });
+    try {
+      return this.toParagraphs(
+        (await parser.getText()).text,
+        'This PDF has no selectable text. Upload a text-based PDF or DOCX instead.',
+      );
+    } catch {
+      throw new BadRequestException(
+        'The uploaded PDF is unreadable, encrypted, or does not contain selectable text.',
+      );
+    } finally {
+      await parser.destroy();
+    }
+  }
+
+  private toParagraphs(text: string, emptyMessage: string): string[] {
+    const paragraphs = text
+      .replace(/\r\n?/g, '\n')
+      .split(/\n+/)
+      .map((paragraph) => paragraph.replace(/\s+/g, ' ').trim())
       .filter(Boolean);
 
     if (paragraphs.length === 0) {
-      throw new BadRequestException('The DOCX contains no extractable text.');
+      throw new BadRequestException(emptyMessage);
     }
+    return paragraphs;
+  }
+
+  private async persistProfile(
+    file: Express.Multer.File,
+    paragraphs: string[],
+    sourceExtension: 'docx' | 'pdf',
+  ): Promise<CanonicalResumeProfile> {
+    const resumeId = `resume-${randomUUID()}`;
+    const resumeDirectory = join(this.dataRoot, 'base', resumeId);
+    const sourcePath = join(resumeDirectory, `source.${sourceExtension}`);
+    const profilePath = join(resumeDirectory, 'canonical-resume.json');
 
     const sourceSegments: ResumeSourceSegment[] = paragraphs.map(
       (text, index) => ({
@@ -155,22 +197,45 @@ export class ResumeIngestionService {
     return 'other';
   }
 
-  private validateDocx(
+  private validateUpload(
     file: Express.Multer.File | undefined,
   ): asserts file is Express.Multer.File {
     if (!file) {
-      throw new BadRequestException('A DOCX file is required.');
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      throw new BadRequestException('The DOCX file must be 10 MB or smaller.');
-    }
-    if (
-      !file.originalname.toLowerCase().endsWith('.docx') ||
-      !DOCX_MIME_TYPES.has(file.mimetype)
-    ) {
       throw new BadRequestException(
-        'Only DOCX files are supported in Phase 1.',
+        'A DOCX or text-based PDF file is required.',
       );
     }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new BadRequestException(
+        'The resume file must be 10 MB or smaller.',
+      );
+    }
+    if (this.isPdf(file)) {
+      if (!file.buffer.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
+        throw new BadRequestException(
+          'The uploaded file is not a readable PDF.',
+        );
+      }
+      return;
+    }
+    if (!this.isDocx(file)) {
+      throw new BadRequestException(
+        'Only DOCX and text-based PDF files are supported.',
+      );
+    }
+  }
+
+  private isDocx(file: Express.Multer.File): boolean {
+    return (
+      file.originalname.toLowerCase().endsWith('.docx') &&
+      DOCX_MIME_TYPES.has(file.mimetype)
+    );
+  }
+
+  private isPdf(file: Express.Multer.File): boolean {
+    return (
+      file.originalname.toLowerCase().endsWith('.pdf') &&
+      PDF_MIME_TYPES.has(file.mimetype)
+    );
   }
 }

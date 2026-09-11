@@ -135,8 +135,9 @@ export default function HomePage() {
         <h1>Tailor the story, not the facts.</h1>
         <p className="intro">Review the factual record, then compare it with a job description. Missing requirements are shown as gaps and are never added to the draft.</p>
         <form className="upload-form" onSubmit={upload}>
-            <label htmlFor="file">Base resume (.docx)</label>
-            <input id="file" name="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+            <label htmlFor="file">Base resume (.docx or text-based .pdf)</label>
+            <input id="file" name="file" type="file" accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" required />
+            <p className="review-help">PDFs must contain selectable text. Scanned, image-only, encrypted, and corrupt PDFs are not supported.</p>
             <button type="submit" disabled={uploading}>{uploading ? 'Extracting…' : 'Extract profile'}</button>
         </form>
         {error && <p className="error" role="alert">{error}</p>}
