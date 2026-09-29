@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useRef, useState } from 'react';
+import { ApplicationQuestions } from './components/application-questions';
 
 type Evidence = { sourceFactId: string; sourceSegmentId: string };
 type ResumeSection = 'contact' | 'summary' | 'skills' | 'experience' | 'education' | 'certifications' | 'other';
@@ -48,6 +49,9 @@ export default function HomePage() {
     const [run, setRun] = useState<TailoringRun | null>(null);
     const [error, setError] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [selectingSource, setSelectingSource] = useState(false);
+    const [sourceRevision, setSourceRevision] = useState(0);
+    const sourceRequest = useRef(0);
     const [approving, setApproving] = useState(false);
     const [tailoring, setTailoring] = useState(false);
     const [approvingFinal, setApprovingFinal] = useState(false);
@@ -73,13 +77,16 @@ export default function HomePage() {
         event.preventDefault();
         const input = event.currentTarget.elements.namedItem('file') as HTMLInputElement;
         if (!input.files?.[0]) return;
+        const requestId = ++sourceRequest.current;
+        setSourceRevision(requestId); setSelectingSource(false);
         setUploading(true); setError(''); setProfile(null); setRun(null); setReusedProfile(false); setBaseResumeLabel(input.files[0].name);
         const body = new FormData(); body.append('file', input.files[0]);
         try {
             const result = await parseResponse(await fetch(`${apiUrl}/api/resumes/upload`, { method: 'POST', body }));
+            if (requestId !== sourceRequest.current) return;
             setProfile(result); setClaims(result.claims); setReusedProfile(Boolean(result.reused)); setStage('profile');
-        } catch (reason) { setError(reason instanceof Error ? reason.message : 'Upload failed.'); }
-        finally { setUploading(false); }
+        } catch (reason) { if (requestId === sourceRequest.current) setError(reason instanceof Error ? reason.message : 'Upload failed.'); }
+        finally { if (requestId === sourceRequest.current) setUploading(false); }
     }
 
     function updateClaim(id: string, text: string) { setClaims((current) => current.map((claim) => claim.id === id ? { ...claim, text } : claim)); }
@@ -96,12 +103,13 @@ export default function HomePage() {
 
     async function approve() {
         if (!profile) return;
+        const requestId = sourceRequest.current;
         setApproving(true); setError('');
         try {
             const result = await parseResponse(await fetch(`${apiUrl}/api/resumes/${profile.resumeId}/approve`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claims: claims.map(({ id, text, section }) => ({ id, text, section })) }),
             }));
-            setProfile(result); setClaims(result.claims); setStage('tailor');
+            if (requestId === sourceRequest.current) { setProfile(result); setClaims(result.claims); setStage('tailor'); }
         } catch (reason) { setError(reason instanceof Error ? reason.message : 'Approval failed.'); }
         finally { setApproving(false); }
     }
@@ -150,11 +158,15 @@ export default function HomePage() {
     }
 
     async function selectVersion(versionId: string) {
-        setError(''); setRun(null);
+        const requestId = ++sourceRequest.current;
+        setSourceRevision(requestId); setSelectingSource(true); setUploading(false);
+        setError(''); setRun(null); setProfile(null); setClaims([]); setReusedProfile(false);
         try {
             const result = await parseResponse(await fetch(`${apiUrl}/api/resume-versions/${versionId}/source-profile`));
+            if (requestId !== sourceRequest.current) return;
             setProfile(result); setClaims(result.claims); setBaseResumeLabel(`Saved profile ${result.resumeId}`); setStage(result.status === 'approved' ? 'tailor' : 'profile');
-        } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not select the saved version.'); }
+        } catch (reason) { if (requestId === sourceRequest.current) { setError(reason instanceof Error ? reason.message : 'Could not select the saved version.'); setStage('upload'); } }
+        finally { if (requestId === sourceRequest.current) setSelectingSource(false); }
     }
 
     return <main>
@@ -231,5 +243,6 @@ export default function HomePage() {
             </>}
         </section>}
         <section className="versions" aria-label="Saved resume versions"><div className="review-heading"><div><p className="eyebrow">Reusable versions</p><h2>General, targeted, and job-specific exports</h2></div><button type="button" onClick={loadVersions}>Refresh versions</button></div>{versions.length > 0 && <ol className="version-list">{versions.map((version) => <li key={version.versionId}><div><strong>{version.targetRole}</strong><small>{version.versionType}{version.track ? ` · ${version.track}` : ''} · {new Date(version.createdAt).toLocaleDateString()}</small></div><div className="download-links"><button type="button" onClick={() => selectVersion(version.versionId)}>Use as source</button><a href={`${apiUrl}/api/resume-versions/${version.versionId}/download/docx`}>DOCX</a><a href={`${apiUrl}/api/resume-versions/${version.versionId}/download/pdf`}>PDF</a></div></li>)}</ol>}{versions.length === 0 && <p className="review-help">Generate an approved export, then refresh this list to reuse it in later tailoring work.</p>}</section>
+        <ApplicationQuestions key={sourceRevision} profile={profile} sourceLabel={baseResumeLabel} tailoringJobDescription={jobDescription} apiUrl={apiUrl} disabled={uploading || selectingSource} />
     </main>;
 }

@@ -91,6 +91,7 @@
         "/^python3 - <<'PY'\nimport json\npath = 'data/tailoring-runs/run-22d974df-5efe-45a1-8b96-e09dfa203a2b\\.json'\nrun = json\\.load\\(open\\(path\\)\\)\nprint\\(\\{key: run\\.get\\(key\\) for key in \\('status', 'approvalStatus', 'approvedAt', 'additionalInstructions'\\)\\}\\)\nfinal = run\\.get\\('finalResume'\\) or \\{\\}\nprint\\(\\{key: final\\.get\\(key\\) for key in \\('resumeId', 'summary', 'summaryPresentation'\\)\\}\\)\nmodel = final\\.get\\('renderModel'\\) or \\{\\}\nprint\\(\\{'modelSummaryPresentation': model\\.get\\('summaryPresentation'\\), 'summaryItems': len\\(model\\.get\\('summary', \\[\\]\\)\\)\\}\\)\nPY$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "corepack": true
     }
 }

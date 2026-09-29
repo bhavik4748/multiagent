@@ -3,14 +3,19 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { AppModule } from '../src/app.module';
 import { TailoringAgentsService } from '../src/tailoring-agents.service';
+import { ResumeIngestionService } from '../src/resume-ingestion.service';
+import { TailoringService } from '../src/tailoring.service';
+import { VersionService } from '../src/version.service';
 
 describe('Phase 2 tailoring API (e2e)', () => {
   let app: INestApplication<App>;
   let analyzedJobDescriptions: string[];
+  let dataRoot: string;
 
   beforeEach(async () => {
     analyzedJobDescriptions = [];
@@ -149,6 +154,17 @@ describe('Phase 2 tailoring API (e2e)', () => {
       })
       .compile();
 
+    dataRoot = await mkdtemp(join(tmpdir(), 'resume-tweak-tailoring-e2e-'));
+    Object.defineProperty(moduleFixture.get(ResumeIngestionService), 'dataRoot', {
+      value: dataRoot,
+    });
+    Object.defineProperty(moduleFixture.get(TailoringService), 'runsRoot', {
+      value: join(dataRoot, 'tailoring-runs'),
+    });
+    Object.defineProperties(moduleFixture.get(VersionService), {
+      versionsRoot: { value: join(dataRoot, 'versions') },
+      manifestPath: { value: join(dataRoot, 'manifests/resume-versions.json') },
+    });
     app = moduleFixture.createNestApplication();
     const openApiConfig = new DocumentBuilder()
       .setTitle('Resume Tweak API')
@@ -347,5 +363,6 @@ describe('Phase 2 tailoring API (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+    await rm(dataRoot, { recursive: true, force: true });
   });
 });

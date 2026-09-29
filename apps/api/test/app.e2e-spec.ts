@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { AppModule } from './../src/app.module';
+import { ResumeIngestionService } from '../src/resume-ingestion.service';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,12 +36,18 @@ async function createTextPdfFixture(): Promise<Buffer> {
 
 describe('Phase 0 API (e2e)', () => {
   let app: INestApplication<App>;
+  let dataRoot: string;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
+    // Upload caching must not reuse or modify the developer's approved profiles.
+    dataRoot = await mkdtemp(join(tmpdir(), 'resume-tweak-api-e2e-'));
+    Object.defineProperty(moduleFixture.get(ResumeIngestionService), 'dataRoot', {
+      value: dataRoot,
+    });
     app = moduleFixture.createNestApplication();
     const openApiConfig = new DocumentBuilder()
       .setTitle('Resume Tweak API')
@@ -51,6 +58,11 @@ describe('Phase 0 API (e2e)', () => {
       jsonDocumentUrl: 'api/openapi.json',
     });
     await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+    await rm(dataRoot, { recursive: true, force: true });
   });
 
   it('/api/health (GET) reports the centrally resolved model profile', () => {

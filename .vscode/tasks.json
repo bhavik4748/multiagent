@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start API",
+      "type": "shell",
+      "command": "pnpm start:api",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": "$tsc-watch"
+    },
+    {
+      "label": "Start Web",
+      "type": "shell",
+      "command": "pnpm start:web",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Project",
+      "dependsOn": ["Start API", "Start Web"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

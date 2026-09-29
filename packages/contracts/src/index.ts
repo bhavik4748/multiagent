@@ -1,3 +1,5 @@
+export * from './application-answers';
+
 export const MODEL_PROFILE_ID = 'default' as const;
 export const DEFAULT_FOUNDRY_DEPLOYMENT = 'gpt-5.6-terra' as const;
 
@@ -7,7 +9,7 @@ export interface ModelProfile {
     deployment: string;
     apiVersion: string;
     enabled: boolean;
-    allowedFor: readonly ['resume-tailoring'];
+    allowedFor: readonly ('resume-tailoring' | 'application-answers')[];
     maxOutputTokens: number;
 }
 

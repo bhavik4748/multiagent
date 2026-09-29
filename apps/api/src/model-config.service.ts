@@ -26,7 +26,7 @@ export class ModelConfigService {
       deployment,
       apiVersion,
       enabled: true,
-      allowedFor: ['resume-tailoring'],
+      allowedFor: ['resume-tailoring', 'application-answers'],
       maxOutputTokens: 8000,
     };
   }

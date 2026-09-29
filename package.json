@@ -5,13 +5,14 @@
     "packageManager": "pnpm@10.17.1",
     "scripts": {
         "build:web": "pnpm --filter @resume-tweak/web build",
-        "build": "pnpm --filter @resume-tweak/api build",
+        "build:contracts": "pnpm --filter @resume-tweak/contracts build",
+        "build": "pnpm build:contracts && pnpm --filter @resume-tweak/api build",
         "lint": "pnpm --filter @resume-tweak/api lint",
         "test": "pnpm --filter @resume-tweak/api test",
         "test:e2e": "pnpm --filter @resume-tweak/api test:e2e",
         "test:foundry-smoke": "pnpm --filter @resume-tweak/api test:foundry-smoke",
-        "start:web": "pnpm --filter @resume-tweak/web dev",
-        "start:api": "pnpm --filter @resume-tweak/api start:dev",
+        "start:web": "pnpm --filter @resume-tweak/web dev --port 3001",
+        "start:api": "pnpm build:contracts && pnpm --filter @resume-tweak/api start:dev",
         "restart:api": "fuser -k 3000/tcp 2>/dev/null || true; pnpm start:api"
     }
 }

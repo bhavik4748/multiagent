@@ -13,6 +13,9 @@ import { TailoringAgentsService } from './tailoring-agents.service';
 import { DocumentService } from './document.service';
 import { VersionService } from './version.service';
 import { ArtifactInspectionService } from './artifact-inspection.service';
+import { ApplicationAnswersController } from './application-answers.controller';
+import { ApplicationAnswersService } from './application-answers.service';
+import { ApplicationAnswersAgentService } from './application-answers-agent.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
@@ -21,6 +24,7 @@ import { ArtifactInspectionService } from './artifact-inspection.service';
     HealthController,
     ResumeController,
     TailoringController,
+    ApplicationAnswersController,
   ],
   providers: [
     AppService,
@@ -32,6 +36,8 @@ import { ArtifactInspectionService } from './artifact-inspection.service';
     DocumentService,
     VersionService,
     TailoringService,
+    ApplicationAnswersService,
+    ApplicationAnswersAgentService,
   ],
 })
 export class AppModule { }
